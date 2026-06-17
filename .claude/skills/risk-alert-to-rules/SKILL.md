@@ -27,12 +27,16 @@ For each qualifying alert, work through the SQL WHERE clause systematically:
 1. **Identify the table alias → Chalk namespace** using the mapping table in `references/sql-to-feature-mapping.md`
 2. **Map each condition** to a Chalk feature + operator + value
 3. **Preserve logical structure**: SQL `AND` → `all` group; SQL `OR` → `any` group; SQL `NOT` → `not: true` on the condition
-4. **Flag unmapped conditions** — fields with no Chalk equivalent go into `_conversion_notes`
+4. **Attempt to find every condition before declaring it unmapped** — see rule below
 
-Always verify feature names exist before using them:
+**Rule: grep before giving up.** A condition is only "unmapped" after you have actively searched the feature file and found nothing. "Not in the mapping table" is not the same as "not in Chalk." For any SQL field not in the mapping table, run at minimum two grep attempts using different keywords derived from the column name (e.g., for `dwa.aba` try both `aba` and `domestic`):
+
 ```bash
-grep -i "<field_name>" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
+grep -i "<keyword1>" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
+grep -i "<keyword2>" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
 ```
+
+Only move a condition to `unmapped_conditions` after these searches return nothing relevant. If you find a plausible match, verify it makes semantic sense before using it.
 
 ### Step 4: Generate rule JSON candidates
 

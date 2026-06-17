@@ -58,7 +58,7 @@
 | `dm.createdat` | `delivery_method.melio_db__raw__created_at` | Use `isDateWithinRange` for relative dates |
 | `dm.isverified` | `delivery_method.melio_db__raw__is_verified` (verify exact name) | |
 | `ba.routingnumber` / `dm.routingnumber` | `delivery_method.melio_db__normalized_routing_number` | Use `in` operator for list checks; keep as strings |
-| `dwa.aba` (wire routing) | Check `delivery_method.*` namespace | May not exist as a Chalk feature yet |
+| `dwa.aba` (domestic wire ABA) | `delivery_method.melio_db__raw__domestic_wire_account_aba` | Use `equal` or `in` operator |
 
 **Routing number risk features** (prefer over raw routing number when checking for risky routing numbers):
 - `normalized_routing_number.snowflake__tag__routing_number_risk_category` — risk tag for the routing number
