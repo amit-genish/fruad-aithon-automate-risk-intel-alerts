@@ -1,0 +1,1215 @@
+alert_name,redash_url,sql_text
+Fraud Ring,https://redash.melioservices.com/queries/22411/source,"SELECT distinct p.id, p.organizationid, p.createdat, p.amount, p.riskstatus, p.status, p.partnername
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.VENDORS v ON v.ID = p.VENDORID
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+    LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp on rp.PAYMENT_ID = p.id
+where v.contactemail is not null
+and ((((proxy = 'true') or (MM_paymentIP >= 10) or (Ip_distance>99)) and p.amount >= '6000') or p.amount >= '12000')
+and o.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -14, current_date())
+and o.createorigin = 'user-signup'
+and dm.deliverytype <> 'check'
+and p.riskstatus<>'declined'
+AND rp.org_ode_decision <> 'reject'
+and p.partnername<>'paypal'
+order by p.createdat desc"
+Risky Vendor Emails,https://redash.melioservices.com/queries/22904/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, p.partnername, ba.routingnumber
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.deliverymethods dm on p.deliverymethodid = dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.organizations o on p.organizationid = o.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.bankaccounts ba on dm.bankaccountid = ba.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.VENDORS v on v.id = p.vendorid
+LEFT JOIN prod.ANALYTICS.RISK_EMAILAGE_VENDOR ev on p.id = ev.paymentid
+where dm.createdat > dateadd(day, -7, current_date())
+and p.amount > 2500
+and riskstatus <> 'declined'
+and dm.deliverytype not in ('check', 'virtual')
+and p.partnername <> 'paypal'
+order by 2 desc"
+"DM Linking Fraudulent/Risky, Bad Vendors CC FR",https://redash.melioservices.com/queries/23456/source,"select distinct p.id as payment_id, p.organizationid, p.amount, p.createdat as payment_created_at, p.status as payment_status, p.riskstatus as payment_risk_status, ba.routingnumber, p.partnername, dm.createdat as dm_creation
+from tagged_bank_accounts tba
+JOIN fivetran_cdc.risk_pre_features_db_public.bankaccounts fba on fba.hashednormalizedbankaccount=tba.hash_norm
+JOIN FVTRN_MELIO.BANKACCOUNTS ba ON fba.meliobankaccountid = ba.ID
+JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON ba.id = dm.bankaccountid
+left join fivetran_cdc.fvtrn_melio.payments p on dm.id = p.deliverymethodid
+left join fivetran_cdc.FVTRN_MELIO.ORGANIZATIONS o on p.organizationid = o.Id
+LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp ON rp.PAYMENT_ID = p.id
+where p.deletedat is null and p._fivetran_deleted = False
+and p.riskstatus != 'declined'
+AND rp.org_ode_decision <> 'reject'
+and p.partnername<>'paypal'
+and p.CREATEDAT >= dateadd(day, -2, current_date())
+order by 1 desc"
+DM Linking Fraudulent/Risky,https://redash.melioservices.com/queries/23456/source,"select distinct p.id as payment_id, p.organizationid, p.amount, p.createdat as payment_created_at, p.status as payment_status, p.riskstatus as payment_risk_status, ba.routingnumber, p.partnername, dm.createdat as dm_creation
+from tagged_bank_accounts tba
+JOIN fivetran_cdc.risk_pre_features_db_public.bankaccounts fba on fba.hashednormalizedbankaccount=tba.hash_norm
+JOIN FVTRN_MELIO.BANKACCOUNTS ba ON fba.meliobankaccountid = ba.ID
+JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON ba.id = dm.bankaccountid
+left join fivetran_cdc.fvtrn_melio.payments p on dm.id = p.deliverymethodid
+left join fivetran_cdc.FVTRN_MELIO.ORGANIZATIONS o on p.organizationid = o.Id
+LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp ON rp.PAYMENT_ID = p.id
+where p.deletedat is null and p._fivetran_deleted = False
+and p.riskstatus != 'declined'
+AND rp.org_ode_decision <> 'reject'
+and p.partnername<>'paypal'
+and p.CREATEDAT >= dateadd(day, -2, current_date())
+order by 1 desc"
+Bad Vendors CC FR,https://redash.melioservices.com/queries/23456/source,"select distinct p.id as payment_id, p.organizationid, p.amount, p.createdat as payment_created_at, p.status as payment_status, p.riskstatus as payment_risk_status, ba.routingnumber, p.partnername, dm.createdat as dm_creation
+from tagged_bank_accounts tba
+JOIN fivetran_cdc.risk_pre_features_db_public.bankaccounts fba on fba.hashednormalizedbankaccount=tba.hash_norm
+JOIN FVTRN_MELIO.BANKACCOUNTS ba ON fba.meliobankaccountid = ba.ID
+JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON ba.id = dm.bankaccountid
+left join fivetran_cdc.fvtrn_melio.payments p on dm.id = p.deliverymethodid
+left join fivetran_cdc.FVTRN_MELIO.ORGANIZATIONS o on p.organizationid = o.Id
+LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp ON rp.PAYMENT_ID = p.id
+where p.deletedat is null and p._fivetran_deleted = False
+and p.riskstatus != 'declined'
+AND rp.org_ode_decision <> 'reject'
+and p.partnername<>'paypal'
+and p.CREATEDAT >= dateadd(day, -2, current_date())
+order by 1 desc"
+Failed No History,https://redash.melioservices.com/queries/23623/source,"Select p.id as pid, p.organizationid, p.createdat as payment_creation, p.scheduleddate, p.amount, p.riskstatus, p.status, p.partnername, max(t.createdat) as last_txn_date
+from FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.deliverymethods dm on p.deliverymethodid=dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.TRANSACTIONS t on p.id=t.paymentid
+where rawdata:returnCode is not null
+and rawdata:returnCode NOT ILIKE '%R03%'
+and rawdata:returnCode NOT ILIKE '%R01%'
+and modelresult:features.numCompletedApprovedPayments=0
+and p.scheduleddate >= dateadd(day, -7, current_date())
+and dm.createdat >= dateadd(day, -14, current_date())
+and p.amount>2500
+and p.partnername<>'paypal'
+group by 1,2,3,4,5,6,7,8
+order by last_txn_date DESC"
+QBDT FR Alert,https://redash.melioservices.com/queries/24947/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, ba.routingnumber, p.createorigin, p.partnername
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.deliverymethods dm on p.deliverymethodid=dm.id
+LEFT JOIN FVTRN_MELIO.users u on u.id=p.createdbyid
+LEFT JOIN FVTRN_MELIO.bankaccounts ba on dm.bankaccountid=ba.id
+LEFT JOIN FVTRN_MELIO.VENDORS v on v.id=p.vendorid
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+where p.createorigin ='qbdt-windows'
+and dm.createdat > dateadd(day, -7, current_date())
+and p.createdat > dateadd(day, -50, current_date())
+and p.amount>4000
+and dm.deliverytype not in ('check', 'virtual')
+order by 3 desc"
+DarkNet Tagged Orgs,https://redash.melioservices.com/queries/19774/source,"SELECT 
+    DISTINCT(p.ID),
+    p.CREATEDAT AS pmt_createdat,
+    p.AMOUNT,
+    p.status,
+    p.riskstatus,
+    p.organizationid,
+    p.partnername,
+    o.COMPANYNAME AS OrgsName,
+    v.COMPANYNAME AS VendorsName,
+    v.CREATEDAT AS vendor_createdat,
+    dm.CREATEDAT AS dm_createdat,
+    t.name as org_tag,
+    tt.name as user_tag
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.ORGANIZATIONID
+    LEFT JOIN FVTRN_MELIO.VENDORS v ON v.ID = p.VENDORID
+    left join FVTRN_MELIO.USERS u on p.CREATEDBYID = u.ID
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS et on et.ENTITY_ID = o.id::string
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS ett on ett.ENTITY_ID = u.id::string
+    LEFT JOIN MONGO_TAGGING_TAGGING.TAGS t on et.TAG = t._ID
+    LEFT JOIN MONGO_TAGGING_TAGGING.TAGS tt on ett.TAG = tt._ID
+WHERE ((et.tag = '6421b39db68c85b48417aaab' and et.deleted_at is null and et._fivetran_deleted = False)
+or (ett.tag = '659bca0ae0f9a3ce77beafd2' and ett.deleted_at is null and ett._fivetran_deleted = False))
+and dm.createdat >= '2026-01-01'
+and p.partnername<>'paypal'
+and p.CREATEDAT >= dateadd(day, -1, current_date())"
+Suspicious Amount Payments,https://redash.melioservices.com/queries/19462/source,"WITH last_action_table AS (SELECT    
+                organizationId,
+                max(id) AS last_action_id
+    FROM FIVETRAN_CDC.DECISION_ENGINE_DECISION.ORGANIZATIONDECISIONS
+    GROUP BY 1
+)
+
+SELECT DISTINCT(p.ID) AS PaymentID,
+concat('https://mos.production.melioservices.com/sherlock/general/live?paymentId=',p.id) as link,
+o.COMPANYNAME AS OrgCompanyName,
+p.organizationid,
+o.TAXIDTYPE, 
+p.AMOUNT,
+p.riskstatus,
+p.STATUS,
+p.createdat AS Pmtcreated,
+p.SCHEDULEDDATE AS PmtScheduledDate,
+p.partnername,
+od.decision AS ODE,
+o.createdat AS OrgCreatedAt,
+ba.ROUTINGNUMBER,
+v.COMPANYNAME AS VendorName,
+dm.createdat AS DmCreatedAt,
+v.CONTACTEMAIL AS VendorEmail,
+num_payments,
+json_extract_path_text(try_parse_json(red.modelResult), 'features.payorIdmMMScore') AS payorIdmMMScore,
+json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpNetworkScore') AS payorWpClientIpNetworkScore,
+json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpIdentityScore') AS payorWpClientIpIdentityScore
+FROM FVTRN_MELIO.PAYMENTS p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON p.id = red.paymentId
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.ORGANIZATIONID
+LEFT JOIN last_action_table la ON o.id = la.organizationId
+JOIN DECISION_ENGINE_DECISION.ORGANIZATIONDECISIONS od on od.id = la.last_action_id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON p.DELIVERYMETHODID = dm.ID
+JOIN FVTRN_MELIO.VENDORS v ON v.ID = dm.VENDORID
+JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+LEFT JOIN (SELECT organizationId, count(id) num_payments from FVTRN_MELIO.PAYMENTS GROUP BY 1) op ON op.organizationID = o.id
+WHERE p.amount BETWEEN 9000.00 AND 10000.00
+AND red.mode = 'live'
+AND json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpNetworkScore') > 0.600
+AND json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpIdentityScore') > 400
+AND od.decision != 'reject'
+AND ((ba.routingnumber = '026014902'
+OR ba.routingnumber = '041215663'
+OR ba.routingnumber = '124303120'
+OR ba.routingnumber = '073972181'
+OR ba.routingnumber = '084106768'
+OR ba.routingnumber = '103100195'
+OR ba.routingnumber = '031101279'
+OR ba.routingnumber = '124303201'
+OR ba.routingnumber = '021214891'
+OR ba.routingnumber = '124303162'
+OR ba.routingnumber = '124303214')
+or o.TAXIDTYPE = 'SSN')
+and dm.createdat > '2025-12-01'
+and p.createdat >= dateadd(day, -5, current_date())
+order by p.createdat desc"
+Reverse Phishing,https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+Dormant Account Alert,https://redash.melioservices.com/queries/22901/source,"Select p.id, p.amount, p.status, p.riskstatus, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation
+FROM FVTRN_MELIO.payments p 
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.riskstatus in ('approved', 'pending')
+and dm.createdat > dateadd(day, -75, current_date())
+and dm.deliverytype<>'check'
+and p.scheduleddate < dateadd(day, +2, current_date())
+and p.scheduleddate > dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.scheduleddate desc"
+Explosive Growth,https://redash.melioservices.com/queries/22966/source,"Select p.id, p.status, p.riskstatus, p.amount, p.partnername, p.organizationid, p.createdat as pcreation, p.scheduleddate as pscheduled, dm.createdat as dmcreation
+FROM FVTRN_MELIO.payments p 
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.riskstatus in ('approved', 'pending')
+and p.amount>5000
+and dm.createdat>dateadd(day, -60, current_date())
+and dm.deliverytype not in ('check', 'virtual')
+and p.scheduleddate<dateadd(day, +2, current_date())
+and o.createdat>dateadd(day, -90, current_date())
+and p.partnername<>'paypal'
+order by pscheduled desc, p.createdat desc"
+RTP Explosive Growth Alert,https://redash.melioservices.com/queries/23397/source,"SELECT distinct p.id, p.organizationid as orgid, p.createdat, p.scheduleddate as pscheduled, p.amount, p.riskstatus, p.status, p.partnername, dm.createdat as dm_creation, ba.ROUTINGNUMBER AS routing_number
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN rtp_2 on p.organizationid=rtp_2.orgid
+    LEFT JOIN rtp_14 on p.organizationid=rtp_14.org_id
+    LEFT JOIN rtp_allt on p.organizationid=rtp_allt.org_id
+    LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp on rp.PAYMENT_ID = p.id
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+where (sum_rtp_2>30000 or sum_rtp_14>70000)
+and (sum_compl_rtp<50000 or sum_compl_rtp is null)
+and p.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -30, current_date())
+and p.amount>5000
+and p.partnername<>'paypal'
+and p.riskstatus<>'declined'
+order by p.createdat desc"
+DM routings 026073150 236070545 124303162 031101334,https://redash.melioservices.com/queries/24112/source,"SELECT distinct p.id, p.organizationid, p.createdat, dm.createdat as dm_createdat, p.amount, p.riskstatus, p.status, p.partnername, ba.ROUTINGNUMBER AS routing_number
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.VENDORS v ON v.ID = p.VENDORID
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+    LEFT JOIN FVTRN_MELIO.DOMESTICWIREACCOUNTS dwa on dm.DOMESTICWIREACCOUNTID=dwa.id
+where (p.amount>1500 or (p.createorigin in ('ar-invoice', 'request', 'ar-link')))
+and dm.createdat >= dateadd(day, -10, current_date())
+and ((ba.routingnumber in (236070545, 124303162, 031101334, 073972181, 121145307) or p.isfinanced='true') or (dwa.aba=121145307))
+and dm.deliverytype <> 'check'
+and p.partnername<>'paypal'
+and p.partnername<>'fiserv_us-bank'
+order by p.createdat desc"
+Risky Browser,https://redash.melioservices.com/queries/24778/source,"select distinct p.entity:id, pp.organizationid, pp.createdat, pp.partnername, pp.amount, pp.riskstatus, pp.status, ba.routingnumber, device_data:browser, device_data:os
+from FVTRN_MELIO.PAYMENTS pp
+LEFT JOIN FIVETRAN_CDC.DYNAMODB.PRODUCTION_RISK_ORCHESTRATION_EXECUTION_PLANS as p on pp.id=p.entity:id
+inner join fivetran_cdc.DEVICE_DATA_COLLECTION_DEVICE_DATA_COLLECTION.DEVICEDATAS as d on p.steps[0][0]:context:eventMetadata:actionId::string=d.action_id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on pp.deliverymethodid=dm.id
+LEFT JOIN FVTRN_MELIO.bankaccounts ba on dm.bankaccountid=ba.id
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red on pp.id=red.paymentid
+where pp.createdat > dateadd(day, -4, current_date())
+and dm.createdat > dateadd(day, -7, current_date())
+and pp.riskstatus<>'declined'
+and (device_data:browser in('Firefox', 'Opera Touch', 'Opera', 'Opera GX', 'Iron') or device_data:os='Linux')
+and dm.deliverytype not in ('check', 'virtual')
+and pp.partnername<>'paypal'
+and pp.partnername<>'fiserv_us-bank'
+order by pp.createdat desc"
+Failed Deleted FS,https://redash.melioservices.com/queries/23528/source,"Select distinct p.id, p.createdat, p.amount, p.organizationid, p.status, fs.id as fs_id, p.riskstatus, rawdata:returnCode, max(t.createdat), fs.deletedat as fs_deletedat
+from FVTRN_MELIO.PAYMENTS p
+LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp on p.id=rp.PAYMENT_ID  
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.TRANSACTIONS t on p.id=t.paymentid
+LEFT JOIN FVTRN_MELIO.Fundingsources fs on p.fundingsourceid=fs.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.updatedat > dateadd(day, -60, current_date())
+and fs.deletedat is not null
+and riskstatus is not null
+and p.amount>4500
+AND rp.org_ode_decision <> 'reject'
+and fs.deletedat > dateadd(day, -10, current_date())
+and p.createdat>dateadd(day, -60, current_date())
+and dm.createdat>dateadd(day, -45, current_date())
+and dm.deliverytype<>'check'
+and p.partnername<>'paypal'
+group by 1,2,3,4,5,6,7,8,10
+order by 10 desc"
+MM Fraud Ring,https://redash.melioservices.com/queries/23981/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, u.email as user_email, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, ba.routingnumber, ba.accountnumber
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.deliverymethods dm on p.deliverymethodid=dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.users u on u.id=p.createdbyid
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.bankaccounts ba on dm.bankaccountid=ba.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.VENDORS v on v.id=p.vendorid
+where dm.createdat > dateadd(day, -30, current_date())
+and p.amount>2500
+and p.createdat > dateadd(day, -30, current_date())
+and modelresult:features.payorEaEmailRiskScore>499
+and p.createorigin in ('ar-invoice', 'request', 'ar-link')
+and p.riskstatus<>'declined'
+and p.partnername<>'paypal'
+order by 2 desc"
+Suspected Reverse Phishing,https://redash.melioservices.com/queries/19842/source,"SELECT DISTINCT(p.ID), p.STATUS, p.AMOUNT, p.createdat, p.partnername, dm.createdat as dm_createdat, p.ORGANIZATIONID, ba.ROUTINGNUMBER, v.COMPANYNAME AS vendor_company_name, v.CONTACTEMAIL AS VendorEmail
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON p.DELIVERYMETHODID = dm.ID
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.ORGANIZATIONID
+    JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    JOIN FVTRN_MELIO.VENDORS v ON v.ID = dm.VENDORID
+    join FVTRN_MELIO.RISKENGINEDECISIONS re on re.PAYMENTID = p.id
+WHERE ((v.COMPANYNAME ILIKE '%LinkedIn%' AND ba.ROUTINGNUMBER != '121000358') OR (v.COMPANYNAME ILIKE '%Microsoft%' AND ba.ROUTINGNUMBER != '111000012') OR (v.COMPANYNAME ILIKE 'Google%' AND ba.ROUTINGNUMBER != '121000248'))
+and dm.createdat >= dateadd(day, -30, current_date())
+and p.createdat >= dateadd(day, -5, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+RI Tagged Orgs,https://redash.melioservices.com/queries/20289/source,"SELECT DISTINCT p.ID, p.CREATEDAT AS pmt_createdat, p.AMOUNT, p.status, p.riskstatus, p.organizationid
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.ORGANIZATIONID
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS eo on eo.entity_Id = p.organizationid::string
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS eoo on eoo.entity_Id = p.vendorid::string
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS eooo on eooo.entity_Id = p.createdbyid::string
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+WHERE (eo.""TAG"" = '649ad1bdc3f674380a059f7c' or eoo.""TAG"" = '65fae5bc267fb7ce6c7d909f' or eooo.""TAG"" = '67baf63587c267571af86d15')
+and dm.createdat >= dateadd(day, -30, current_date())
+and p.riskstatus<>'declined'
+AND p.CREATEDAT >= dateadd(day, -4, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"RI Tagged Orgs, QBDT FR Alert",https://redash.melioservices.com/queries/20289/source,"SELECT DISTINCT p.ID, p.CREATEDAT AS pmt_createdat, p.AMOUNT, p.status, p.riskstatus, p.organizationid
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.ORGANIZATIONID
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS eo on eo.entity_Id = p.organizationid::string
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS eoo on eoo.entity_Id = p.vendorid::string
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS eooo on eooo.entity_Id = p.createdbyid::string
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+WHERE (eo.""TAG"" = '649ad1bdc3f674380a059f7c' or eoo.""TAG"" = '65fae5bc267fb7ce6c7d909f' or eooo.""TAG"" = '67baf63587c267571af86d15')
+and dm.createdat >= dateadd(day, -30, current_date())
+and p.riskstatus<>'declined'
+AND p.CREATEDAT >= dateadd(day, -4, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+New Email Domains,https://redash.melioservices.com/queries/23044/source,"Select p.id as pid, p.organizationid as org_id, p.createdat, p.amount, p.riskstatus, p.status, p.partnername
+from FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.deliverymethods dm on p.deliverymethodid=dm.id
+Where p.createdat>dateadd(day, -10, current_date())
+and dm.createdat > dateadd(day, -10, current_date())
+and p.riskstatus<>'declined'
+and (modelResult:features.payeeEaDomainCreationDays<20 or modelResult:features.payorEaDomainCreationDays<20)
+and p.amount>1000
+and p.partnername<>'paypal'
+group by 1,2,3,4,5,6,7,8,9,10
+order by 3 desc"
+(Risky) payment solutions FS routings,https://redash.melioservices.com/queries/24502/source,"select p.id, p.organizationid, p.createdat, dm.createdat as dmcreation, p.amount, baf.routingnumber as FS_routing, bad.routingnumber as DM_routing, p.status, p.riskstatus, p.partnername
+from FVTRN_MELIO.PAYMENTS p
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid = dm.id
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o on p.organizationid = o.id
+LEFT JOIN FVTRN_MELIO.FUNDINGSOURCES fs on p.fundingsourceid = fs.id
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS baf on fs.bankaccountid = baf.id
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS bad on dm.bankaccountid = bad.id
+where p.createdat > dateadd(day, -14, current_date())
+and dm.createdat > dateadd(day, -14, current_date())
+and baf.routingnumber in ('124003116', '042287027', '265070435')
+order by p.createdat desc"
+"Reverse Phishing, Risky Browser",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"MM Fraud Ring, DM routings 026073150 236070545 124303162 031101334",https://redash.melioservices.com/queries/23981/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, u.email as user_email, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, ba.routingnumber, ba.accountnumber
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.deliverymethods dm on p.deliverymethodid=dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.users u on u.id=p.createdbyid
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.bankaccounts ba on dm.bankaccountid=ba.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.VENDORS v on v.id=p.vendorid
+where dm.createdat > dateadd(day, -30, current_date())
+and p.amount>2500
+and p.createdat > dateadd(day, -30, current_date())
+and modelresult:features.payorEaEmailRiskScore>499
+and p.createorigin in ('ar-invoice', 'request', 'ar-link')
+and p.riskstatus<>'declined'
+and p.partnername<>'paypal'
+order by 2 desc"
+"Explosive Growth, Risky Browser",https://redash.melioservices.com/queries/22966/source,"Select p.id, p.status, p.riskstatus, p.amount, p.partnername, p.organizationid, p.createdat as pcreation, p.scheduleddate as pscheduled, dm.createdat as dmcreation
+FROM FVTRN_MELIO.payments p 
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.riskstatus in ('approved', 'pending')
+and p.amount>5000
+and dm.createdat>dateadd(day, -60, current_date())
+and dm.deliverytype not in ('check', 'virtual')
+and p.scheduleddate<dateadd(day, +2, current_date())
+and o.createdat>dateadd(day, -90, current_date())
+and p.partnername<>'paypal'
+order by pscheduled desc, p.createdat desc"
+Payments with 071025661 routing,https://redash.melioservices.com/queries/23005/source,"select p.id, p.organizationid, p.createdat, dm.createdat as dmcreation, p.amount, bad.routingnumber, p.riskstatus, p.partnername, p.status
+from FVTRN_MELIO.PAYMENTS p
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid = dm.id
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS bad on dm.bankaccountid = bad.id
+where p.createdat > dateadd(day, -14, current_date())
+and dm.createdat > dateadd(day, -14, current_date())
+and baf.routingnumber = '071025661'
+and p.partnername <> 'fiserv_bmo'
+order by p.createdat desc"
+"Suspicious Amount Payments, Risky Vendor Emails, DM routings 026073150 236070545 124303162 031101334",https://redash.melioservices.com/queries/19462/source,"WITH last_action_table AS (SELECT    
+                organizationId,
+                max(id) AS last_action_id
+    FROM FIVETRAN_CDC.DECISION_ENGINE_DECISION.ORGANIZATIONDECISIONS
+    GROUP BY 1
+)
+
+SELECT DISTINCT(p.ID) AS PaymentID,
+concat('https://mos.production.melioservices.com/sherlock/general/live?paymentId=',p.id) as link,
+o.COMPANYNAME AS OrgCompanyName,
+p.organizationid,
+o.TAXIDTYPE, 
+p.AMOUNT,
+p.riskstatus,
+p.STATUS,
+p.createdat AS Pmtcreated,
+p.SCHEDULEDDATE AS PmtScheduledDate,
+p.partnername,
+od.decision AS ODE,
+o.createdat AS OrgCreatedAt,
+ba.ROUTINGNUMBER,
+v.COMPANYNAME AS VendorName,
+dm.createdat AS DmCreatedAt,
+v.CONTACTEMAIL AS VendorEmail,
+num_payments,
+json_extract_path_text(try_parse_json(red.modelResult), 'features.payorIdmMMScore') AS payorIdmMMScore,
+json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpNetworkScore') AS payorWpClientIpNetworkScore,
+json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpIdentityScore') AS payorWpClientIpIdentityScore
+FROM FVTRN_MELIO.PAYMENTS p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON p.id = red.paymentId
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.ORGANIZATIONID
+LEFT JOIN last_action_table la ON o.id = la.organizationId
+JOIN DECISION_ENGINE_DECISION.ORGANIZATIONDECISIONS od on od.id = la.last_action_id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON p.DELIVERYMETHODID = dm.ID
+JOIN FVTRN_MELIO.VENDORS v ON v.ID = dm.VENDORID
+JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+LEFT JOIN (SELECT organizationId, count(id) num_payments from FVTRN_MELIO.PAYMENTS GROUP BY 1) op ON op.organizationID = o.id
+WHERE p.amount BETWEEN 9000.00 AND 10000.00
+AND red.mode = 'live'
+AND json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpNetworkScore') > 0.600
+AND json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpIdentityScore') > 400
+AND od.decision != 'reject'
+AND ((ba.routingnumber = '026014902'
+OR ba.routingnumber = '041215663'
+OR ba.routingnumber = '124303120'
+OR ba.routingnumber = '073972181'
+OR ba.routingnumber = '084106768'
+OR ba.routingnumber = '103100195'
+OR ba.routingnumber = '031101279'
+OR ba.routingnumber = '124303201'
+OR ba.routingnumber = '021214891'
+OR ba.routingnumber = '124303162'
+OR ba.routingnumber = '124303214')
+or o.TAXIDTYPE = 'SSN')
+and dm.createdat > '2025-12-01'
+and p.createdat >= dateadd(day, -5, current_date())
+order by p.createdat desc"
+"Reverse Phishing, Dormant Account Alert",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+FVD FR DM Routing,https://redash.melioservices.com/queries/23365/source,"select p.id, p.organizationid, p.amount, p.createdat, p.status, p.riskstatus, ba.routingnumber, p.partnername
+from fr_routing frout
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba on frout.routnum=ba.routingnumber
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on ba.id=dm.bankaccountid
+LEFT JOIN FVTRN_MELIO.PAYMENTS p on dm.id=p.deliverymethodid
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.FUNDINGSOURCES fs on p.fundingsourceid=fs.id
+where riskstatus<>'declined'
+and o.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -10, current_date())
+and p.CREATEDAT >= dateadd(day, -10, current_date())
+and p.partnername<>'paypal'
+and p.createorigin<>'ar-link'
+order by p.createdat DESC"
+"Reverse Phishing, RTP Explosive Growth Alert",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"Dormant Account Alert, QBDT FR Alert",https://redash.melioservices.com/queries/22901/source,"Select p.id, p.amount, p.status, p.riskstatus, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation
+FROM FVTRN_MELIO.payments p 
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.riskstatus in ('approved', 'pending')
+and dm.createdat > dateadd(day, -75, current_date())
+and dm.deliverytype<>'check'
+and p.scheduleddate < dateadd(day, +2, current_date())
+and p.scheduleddate > dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.scheduleddate desc"
+"Explosive Growth, Cap1 Risky Amount Ring",https://redash.melioservices.com/queries/22966/source,"Select p.id, p.status, p.riskstatus, p.amount, p.partnername, p.organizationid, p.createdat as pcreation, p.scheduleddate as pscheduled, dm.createdat as dmcreation
+FROM FVTRN_MELIO.payments p 
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.riskstatus in ('approved', 'pending')
+and p.amount>5000
+and dm.createdat>dateadd(day, -60, current_date())
+and dm.deliverytype not in ('check', 'virtual')
+and p.scheduleddate<dateadd(day, +2, current_date())
+and o.createdat>dateadd(day, -90, current_date())
+and p.partnername<>'paypal'
+order by pscheduled desc, p.createdat desc"
+Cap1 Risky Amount Ring,https://redash.melioservices.com/queries/22966/source,"Select p.id, p.status, p.riskstatus, p.amount, p.partnername, p.organizationid, p.createdat as pcreation, p.scheduleddate as pscheduled, dm.createdat as dmcreation
+FROM FVTRN_MELIO.payments p 
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.riskstatus in ('approved', 'pending')
+and p.amount>5000
+and dm.createdat>dateadd(day, -60, current_date())
+and dm.deliverytype not in ('check', 'virtual')
+and p.scheduleddate<dateadd(day, +2, current_date())
+and o.createdat>dateadd(day, -90, current_date())
+and p.partnername<>'paypal'
+order by pscheduled desc, p.createdat desc"
+"New Email Domains, MM Fraud Ring",https://redash.melioservices.com/queries/23044/source,"Select p.id as pid, p.organizationid as org_id, p.createdat, p.amount, p.riskstatus, p.status, p.partnername
+from FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.deliverymethods dm on p.deliverymethodid=dm.id
+Where p.createdat>dateadd(day, -10, current_date())
+and dm.createdat > dateadd(day, -10, current_date())
+and p.riskstatus<>'declined'
+and (modelResult:features.payeeEaDomainCreationDays<20 or modelResult:features.payorEaDomainCreationDays<20)
+and p.amount>1000
+and p.partnername<>'paypal'
+group by 1,2,3,4,5,6,7,8,9,10
+order by 3 desc"
+"Reverse Phishing, Risky Vendor Emails",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"Reverse Phishing, Fraud Ring, Bad Vendors CC FR",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"Fraud Ring, Explosive Growth",https://redash.melioservices.com/queries/22411/source,"SELECT distinct p.id, p.organizationid, p.createdat, p.amount, p.riskstatus, p.status, p.partnername
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.VENDORS v ON v.ID = p.VENDORID
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+    LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp on rp.PAYMENT_ID = p.id
+where v.contactemail is not null
+and ((((proxy = 'true') or (MM_paymentIP >= 10) or (Ip_distance>99)) and p.amount >= '6000') or p.amount >= '12000')
+and o.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -14, current_date())
+and o.createorigin = 'user-signup'
+and dm.deliverytype <> 'check'
+and p.riskstatus<>'declined'
+AND rp.org_ode_decision <> 'reject'
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"Risky Vendor Emails, Risky Browser",https://redash.melioservices.com/queries/22904/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, p.partnername, ba.routingnumber
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.deliverymethods dm on p.deliverymethodid = dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.organizations o on p.organizationid = o.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.bankaccounts ba on dm.bankaccountid = ba.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.VENDORS v on v.id = p.vendorid
+LEFT JOIN prod.ANALYTICS.RISK_EMAILAGE_VENDOR ev on p.id = ev.paymentid
+where dm.createdat > dateadd(day, -7, current_date())
+and p.amount > 2500
+and riskstatus <> 'declined'
+and dm.deliverytype not in ('check', 'virtual')
+and p.partnername <> 'paypal'
+order by 2 desc"
+"Payments with 071025661 routing, Risky Browser",https://redash.melioservices.com/queries/23005/source,"select p.id, p.organizationid, p.createdat, dm.createdat as dmcreation, p.amount, bad.routingnumber, p.riskstatus, p.partnername, p.status
+from FVTRN_MELIO.PAYMENTS p
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid = dm.id
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS bad on dm.bankaccountid = bad.id
+where p.createdat > dateadd(day, -14, current_date())
+and dm.createdat > dateadd(day, -14, current_date())
+and baf.routingnumber = '071025661'
+and p.partnername <> 'fiserv_bmo'
+order by p.createdat desc"
+"Risky Browser, Cap1 Risky Amount Ring",https://redash.melioservices.com/queries/24778/source,"select distinct p.entity:id, pp.organizationid, pp.createdat, pp.partnername, pp.amount, pp.riskstatus, pp.status, ba.routingnumber, device_data:browser, device_data:os
+from FVTRN_MELIO.PAYMENTS pp
+LEFT JOIN FIVETRAN_CDC.DYNAMODB.PRODUCTION_RISK_ORCHESTRATION_EXECUTION_PLANS as p on pp.id=p.entity:id
+inner join fivetran_cdc.DEVICE_DATA_COLLECTION_DEVICE_DATA_COLLECTION.DEVICEDATAS as d on p.steps[0][0]:context:eventMetadata:actionId::string=d.action_id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on pp.deliverymethodid=dm.id
+LEFT JOIN FVTRN_MELIO.bankaccounts ba on dm.bankaccountid=ba.id
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red on pp.id=red.paymentid
+where pp.createdat > dateadd(day, -4, current_date())
+and dm.createdat > dateadd(day, -7, current_date())
+and pp.riskstatus<>'declined'
+and (device_data:browser in('Firefox', 'Opera Touch', 'Opera', 'Opera GX', 'Iron') or device_data:os='Linux')
+and dm.deliverytype not in ('check', 'virtual')
+and pp.partnername<>'paypal'
+and pp.partnername<>'fiserv_us-bank'
+order by pp.createdat desc"
+"New Email Domains, DM routings 026073150 236070545 124303162 031101334",https://redash.melioservices.com/queries/23044/source,"Select p.id as pid, p.organizationid as org_id, p.createdat, p.amount, p.riskstatus, p.status, p.partnername
+from FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.deliverymethods dm on p.deliverymethodid=dm.id
+Where p.createdat>dateadd(day, -10, current_date())
+and dm.createdat > dateadd(day, -10, current_date())
+and p.riskstatus<>'declined'
+and (modelResult:features.payeeEaDomainCreationDays<20 or modelResult:features.payorEaDomainCreationDays<20)
+and p.amount>1000
+and p.partnername<>'paypal'
+group by 1,2,3,4,5,6,7,8,9,10
+order by 3 desc"
+FS Fraudulent Linking,https://redash.melioservices.com/queries/23191/source,"select distinct p.id as payment_id, p.organizationid, p.amount, p.createdat as payment_created_at, p.status as payment_status, p.riskstatus as payment_risk_status
+from tagged_bank_accounts tba
+JOIN fivetran_cdc.risk_pre_features_db_public.bankaccounts fba on fba.hashednormalizedbankaccount=tba.hash_norm
+JOIN FVTRN_MELIO.BANKACCOUNTS ba ON fba.meliobankaccountid = ba.ID
+JOIN FVTRN_MELIO.Fundingsources fs ON ba.id = fs.bankaccountid
+left join fivetran_cdc.fvtrn_melio.payments p on fs.id = p.fundingsourceid
+left join fivetran_cdc.FVTRN_MELIO.ORGANIZATIONS o on p.organizationid = o.Id
+LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp ON rp.PAYMENT_ID = p.id
+where p.deletedat is null and p._fivetran_deleted = False
+and p.riskstatus != 'declined'
+and p.partnername<>'paypal'
+AND rp.org_ode_decision <> 'reject'
+and p.CREATEDAT >= dateadd(day, -2, current_date())
+order by 1 desc"
+Fast DW Alert,https://redash.melioservices.com/queries/25363/source,"SELECT distinct p.id, p.organizationid as orgid, p.createdat, p.scheduleddate as pscheduled, sum_rtp_2 as rtp_2, sum_rtp_14 as rtp_14, p.amount, p.riskstatus, p.status, ba.ROUTINGNUMBER AS routing_number
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN rtp_2 on p.organizationid=rtp_2.orgid
+    LEFT JOIN rtp_14 on p.organizationid=rtp_14.org_id
+    LEFT JOIN rtp_allt on p.organizationid=rtp_allt.org_id
+    LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp on rp.PAYMENT_ID = p.id
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    LEFT JOIN FVTRN_MELIO.DOMESTICWIREACCOUNTS dwa on dm.DOMESTICWIREACCOUNTID=dwa.id
+where (((sum_rtp_2>4500 or sum_rtp_14>10000) and (sum_compl_rtp<200000 or sum_compl_rtp is null)) or (dwa.aba in (121145307)))
+and p.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -30, current_date())
+and p.amount<5000
+and p.deliverypreference='express-domestic-wire'
+order by p.createdat desc"
+ATO v3 Alert,https://redash.melioservices.com/queries/25913/source,"select tp.ORGANIZATIONID as org_id, tp.CREATEDAT::date as date_checked, max(scores.ato_v3_score) as max_ato_v3_score, max(pa.preceeding_5_days_amounts) as preceeding_5_days_amounts, count(distinct tp.payment_id) as num_payments, sum(tp.AMOUNT) as total_amount, max(tp.payment_id) as payment_id, max(tp.createdat) as payment_createdat
+from todays_payments tp
+    join ato_v3_scores scores on scores.payment_id = tp.payment_id
+    join preceeding_amounts pa on pa.payment_id = tp.payment_id
+    left join ip_whitelist wl on wl.ORGANIZATIONID = tp.ORGANIZATIONID and wl.CLIENTIP = tp.CLIENTIP
+where scores.ato_v3_score > 20
+  and pa.preceeding_5_days_amounts > 50000
+  and (wl.CLIENTIP is null or tp.payment_id = wl.first_ip_pmt)
+group by tp.ORGANIZATIONID, tp.CREATEDAT::date
+order by max_ato_v3_score desc"
+"Suspected Reverse Phishing, Risky Vendor Emails",https://redash.melioservices.com/queries/19842/source,"SELECT DISTINCT(p.ID), p.STATUS, p.AMOUNT, p.createdat, p.partnername, dm.createdat as dm_createdat, p.ORGANIZATIONID, ba.ROUTINGNUMBER, v.COMPANYNAME AS vendor_company_name, v.CONTACTEMAIL AS VendorEmail
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON p.DELIVERYMETHODID = dm.ID
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.ORGANIZATIONID
+    JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    JOIN FVTRN_MELIO.VENDORS v ON v.ID = dm.VENDORID
+    join FVTRN_MELIO.RISKENGINEDECISIONS re on re.PAYMENTID = p.id
+WHERE ((v.COMPANYNAME ILIKE '%LinkedIn%' AND ba.ROUTINGNUMBER != '121000358') OR (v.COMPANYNAME ILIKE '%Microsoft%' AND ba.ROUTINGNUMBER != '111000012') OR (v.COMPANYNAME ILIKE 'Google%' AND ba.ROUTINGNUMBER != '121000248'))
+and dm.createdat >= dateadd(day, -30, current_date())
+and p.createdat >= dateadd(day, -5, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"DM routings 026073150 236070545 124303162 031101334, Fast DW Alert",https://redash.melioservices.com/queries/24112/source,"SELECT distinct p.id, p.organizationid, p.createdat, dm.createdat as dm_createdat, p.amount, p.riskstatus, p.status, p.partnername, ba.ROUTINGNUMBER AS routing_number
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.VENDORS v ON v.ID = p.VENDORID
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+    LEFT JOIN FVTRN_MELIO.DOMESTICWIREACCOUNTS dwa on dm.DOMESTICWIREACCOUNTID=dwa.id
+where (p.amount>1500 or (p.createorigin in ('ar-invoice', 'request', 'ar-link')))
+and dm.createdat >= dateadd(day, -10, current_date())
+and ((ba.routingnumber in (236070545, 124303162, 031101334, 073972181, 121145307) or p.isfinanced='true') or (dwa.aba=121145307))
+and dm.deliverytype <> 'check'
+and p.partnername<>'paypal'
+and p.partnername<>'fiserv_us-bank'
+order by p.createdat desc"
+Payments following blocked and deleted,https://redash.melioservices.com/queries/25909/source,"select ac.payment_id as alert_payment_id, ac.organizationid, ac.amount as payment_amount, ac.payment_status as alert_payment_status, ac.payment_risk_status as alert_payment_risk_status, ac.decision_at as approved_at, ac.createdat as payment_created_at, ac.prev_payment_id as prev_deleted_payment_id
+from alert_candidates ac
+inner join last_decision ld on ld.paymentid = ac.prev_payment_id
+inner join risk_engine_features ref_prev on ref_prev.paymentid = ac.prev_payment_id
+inner join risk_engine_features ref_curr on ref_curr.paymentid = ac.payment_id
+left join prev_last_pending_reason plpr on plpr.paymentid = ac.prev_payment_id
+where ld.last_decision = 'pending'
+and ac.decision_at >= dateadd('day', -1, current_date())
+order by ac.decision_at desc"
+"Dormant Account Alert, Risky Browser",https://redash.melioservices.com/queries/22901/source,"Select p.id, p.amount, p.status, p.riskstatus, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation
+FROM FVTRN_MELIO.payments p 
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.riskstatus in ('approved', 'pending')
+and dm.createdat > dateadd(day, -75, current_date())
+and dm.deliverytype<>'check'
+and p.scheduleddate < dateadd(day, +2, current_date())
+and p.scheduleddate > dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.scheduleddate desc"
+"Risky Vendor Emails, QBDT FR Alert",https://redash.melioservices.com/queries/22904/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, p.partnername, ba.routingnumber
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.deliverymethods dm on p.deliverymethodid = dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.organizations o on p.organizationid = o.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.bankaccounts ba on dm.bankaccountid = ba.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.VENDORS v on v.id = p.vendorid
+LEFT JOIN prod.ANALYTICS.RISK_EMAILAGE_VENDOR ev on p.id = ev.paymentid
+where dm.createdat > dateadd(day, -7, current_date())
+and p.amount > 2500
+and riskstatus <> 'declined'
+and dm.deliverytype not in ('check', 'virtual')
+and p.partnername <> 'paypal'
+order by 2 desc"
+"Explosive Growth, FVD FR DM Routing",https://redash.melioservices.com/queries/22966/source,"Select p.id, p.status, p.riskstatus, p.amount, p.partnername, p.organizationid, p.createdat as pcreation, p.scheduleddate as pscheduled, dm.createdat as dmcreation
+FROM FVTRN_MELIO.payments p 
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.riskstatus in ('approved', 'pending')
+and p.amount>5000
+and dm.createdat>dateadd(day, -60, current_date())
+and dm.deliverytype not in ('check', 'virtual')
+and p.scheduleddate<dateadd(day, +2, current_date())
+and o.createdat>dateadd(day, -90, current_date())
+and p.partnername<>'paypal'
+order by pscheduled desc, p.createdat desc"
+"DM routings 026073150 236070545 124303162 031101334, Bad Vendors CC FR",https://redash.melioservices.com/queries/24112/source,"SELECT distinct p.id, p.organizationid, p.createdat, dm.createdat as dm_createdat, p.amount, p.riskstatus, p.status, p.partnername, ba.ROUTINGNUMBER AS routing_number
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.VENDORS v ON v.ID = p.VENDORID
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+    LEFT JOIN FVTRN_MELIO.DOMESTICWIREACCOUNTS dwa on dm.DOMESTICWIREACCOUNTID=dwa.id
+where (p.amount>1500 or (p.createorigin in ('ar-invoice', 'request', 'ar-link')))
+and dm.createdat >= dateadd(day, -10, current_date())
+and ((ba.routingnumber in (236070545, 124303162, 031101334, 073972181, 121145307) or p.isfinanced='true') or (dwa.aba=121145307))
+and dm.deliverytype <> 'check'
+and p.partnername<>'paypal'
+and p.partnername<>'fiserv_us-bank'
+order by p.createdat desc"
+"DM routings 026073150 236070545 124303162 031101334, ATO v3 Alert",https://redash.melioservices.com/queries/24112/source,"SELECT distinct p.id, p.organizationid, p.createdat, dm.createdat as dm_createdat, p.amount, p.riskstatus, p.status, p.partnername, ba.ROUTINGNUMBER AS routing_number
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.VENDORS v ON v.ID = p.VENDORID
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+    LEFT JOIN FVTRN_MELIO.DOMESTICWIREACCOUNTS dwa on dm.DOMESTICWIREACCOUNTID=dwa.id
+where (p.amount>1500 or (p.createorigin in ('ar-invoice', 'request', 'ar-link')))
+and dm.createdat >= dateadd(day, -10, current_date())
+and ((ba.routingnumber in (236070545, 124303162, 031101334, 073972181, 121145307) or p.isfinanced='true') or (dwa.aba=121145307))
+and dm.deliverytype <> 'check'
+and p.partnername<>'paypal'
+and p.partnername<>'fiserv_us-bank'
+order by p.createdat desc"
+"Reverse Phishing, Fraud Ring, Risky Vendor Emails, Bad Vendors CC FR",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"Fraud Ring, Risky Vendor Emails, Bad Vendors CC FR",https://redash.melioservices.com/queries/22411/source,"SELECT distinct p.id, p.organizationid, p.createdat, p.amount, p.riskstatus, p.status, p.partnername
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.VENDORS v ON v.ID = p.VENDORID
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+    LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp on rp.PAYMENT_ID = p.id
+where v.contactemail is not null
+and ((((proxy = 'true') or (MM_paymentIP >= 10) or (Ip_distance>99)) and p.amount >= '6000') or p.amount >= '12000')
+and o.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -14, current_date())
+and o.createorigin = 'user-signup'
+and dm.deliverytype <> 'check'
+and p.riskstatus<>'declined'
+AND rp.org_ode_decision <> 'reject'
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"FS Fraudulent Linking, DM Linking Fraudulent/Risky",https://redash.melioservices.com/queries/23191/source,"select distinct p.id as payment_id, p.organizationid, p.amount, p.createdat as payment_created_at, p.status as payment_status, p.riskstatus as payment_risk_status
+from tagged_bank_accounts tba
+JOIN fivetran_cdc.risk_pre_features_db_public.bankaccounts fba on fba.hashednormalizedbankaccount=tba.hash_norm
+JOIN FVTRN_MELIO.BANKACCOUNTS ba ON fba.meliobankaccountid = ba.ID
+JOIN FVTRN_MELIO.Fundingsources fs ON ba.id = fs.bankaccountid
+left join fivetran_cdc.fvtrn_melio.payments p on fs.id = p.fundingsourceid
+left join fivetran_cdc.FVTRN_MELIO.ORGANIZATIONS o on p.organizationid = o.Id
+LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp ON rp.PAYMENT_ID = p.id
+where p.deletedat is null and p._fivetran_deleted = False
+and p.riskstatus != 'declined'
+and p.partnername<>'paypal'
+AND rp.org_ode_decision <> 'reject'
+and p.CREATEDAT >= dateadd(day, -2, current_date())
+order by 1 desc"
+"Reverse Phishing, Fraud Ring",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"Risky Browser, ATO v3 Alert",https://redash.melioservices.com/queries/24778/source,"select distinct p.entity:id, pp.organizationid, pp.createdat, pp.partnername, pp.amount, pp.riskstatus, pp.status, ba.routingnumber, device_data:browser, device_data:os
+from FVTRN_MELIO.PAYMENTS pp
+LEFT JOIN FIVETRAN_CDC.DYNAMODB.PRODUCTION_RISK_ORCHESTRATION_EXECUTION_PLANS as p on pp.id=p.entity:id
+inner join fivetran_cdc.DEVICE_DATA_COLLECTION_DEVICE_DATA_COLLECTION.DEVICEDATAS as d on p.steps[0][0]:context:eventMetadata:actionId::string=d.action_id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on pp.deliverymethodid=dm.id
+LEFT JOIN FVTRN_MELIO.bankaccounts ba on dm.bankaccountid=ba.id
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red on pp.id=red.paymentid
+where pp.createdat > dateadd(day, -4, current_date())
+and dm.createdat > dateadd(day, -7, current_date())
+and pp.riskstatus<>'declined'
+and (device_data:browser in('Firefox', 'Opera Touch', 'Opera', 'Opera GX', 'Iron') or device_data:os='Linux')
+and dm.deliverytype not in ('check', 'virtual')
+and pp.partnername<>'paypal'
+and pp.partnername<>'fiserv_us-bank'
+order by pp.createdat desc"
+"FVD FR DM Routing, DM routings 026073150 236070545 124303162 031101334",https://redash.melioservices.com/queries/23365/source,"select p.id, p.organizationid, p.amount, p.createdat, p.status, p.riskstatus, ba.routingnumber, p.partnername
+from fr_routing frout
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba on frout.routnum=ba.routingnumber
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on ba.id=dm.bankaccountid
+LEFT JOIN FVTRN_MELIO.PAYMENTS p on dm.id=p.deliverymethodid
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.FUNDINGSOURCES fs on p.fundingsourceid=fs.id
+where riskstatus<>'declined'
+and o.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -10, current_date())
+and p.CREATEDAT >= dateadd(day, -10, current_date())
+and p.partnername<>'paypal'
+and p.createorigin<>'ar-link'
+order by p.createdat DESC"
+"Risky Vendor Emails, Bad Vendors CC FR",https://redash.melioservices.com/queries/22904/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, p.partnername, ba.routingnumber
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.deliverymethods dm on p.deliverymethodid = dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.organizations o on p.organizationid = o.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.bankaccounts ba on dm.bankaccountid = ba.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.VENDORS v on v.id = p.vendorid
+LEFT JOIN prod.ANALYTICS.RISK_EMAILAGE_VENDOR ev on p.id = ev.paymentid
+where dm.createdat > dateadd(day, -7, current_date())
+and p.amount > 2500
+and riskstatus <> 'declined'
+and dm.deliverytype not in ('check', 'virtual')
+and p.partnername <> 'paypal'
+order by 2 desc"
+"DM routings 026073150 236070545 124303162 031101334, QBDT FR Alert",https://redash.melioservices.com/queries/24112/source,"SELECT distinct p.id, p.organizationid, p.createdat, dm.createdat as dm_createdat, p.amount, p.riskstatus, p.status, p.partnername, ba.ROUTINGNUMBER AS routing_number
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.organizationid
+    LEFT JOIN FVTRN_MELIO.VENDORS v ON v.ID = p.VENDORID
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+    LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+    LEFT JOIN FVTRN_MELIO.DOMESTICWIREACCOUNTS dwa on dm.DOMESTICWIREACCOUNTID=dwa.id
+where (p.amount>1500 or (p.createorigin in ('ar-invoice', 'request', 'ar-link')))
+and dm.createdat >= dateadd(day, -10, current_date())
+and ((ba.routingnumber in (236070545, 124303162, 031101334, 073972181, 121145307) or p.isfinanced='true') or (dwa.aba=121145307))
+and dm.deliverytype <> 'check'
+and p.partnername<>'paypal'
+and p.partnername<>'fiserv_us-bank'
+order by p.createdat desc"
+"Linked to Stolen Card, DM Linking Fraudulent/Risky",https://redash.melioservices.com/queries/23200/source,"select distinct p.id as payment_id, p.organizationid, p.amount, p.createdat as payment_created_at, p.status as payment_status, p.riskstatus as payment_risk_status
+from tagged_card_accounts tca
+join fivetran_cdc.fvtrn_melio.cardaccounts ca on tca.CARDBIN = ca.CARDBIN and tca.CARD4DIGITS = ca.CARD4DIGITS and tca.EXPIRATION = ca.EXPIRATION and tca.ZIPCODE = ca.ZIPCODE
+join fivetran_cdc.fvtrn_melio.fundingsources fs on fs.cardaccountid = ca.id
+left join fivetran_cdc.fvtrn_melio.payments p on fs.id = p.fundingsourceid
+LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp ON rp.PAYMENT_ID = p.id
+where p.deletedat is null and p._fivetran_deleted = False
+and p.riskstatus != 'declined'
+and p.partnername<>'paypal'
+AND rp.org_ode_decision <> 'reject'
+and p.CREATEDAT >= dateadd(day, -7, current_date())"
+Linked to Stolen Card,https://redash.melioservices.com/queries/23200/source,"select distinct p.id as payment_id, p.organizationid, p.amount, p.createdat as payment_created_at, p.status as payment_status, p.riskstatus as payment_risk_status
+from tagged_card_accounts tca
+join fivetran_cdc.fvtrn_melio.cardaccounts ca on tca.CARDBIN = ca.CARDBIN and tca.CARD4DIGITS = ca.CARD4DIGITS and tca.EXPIRATION = ca.EXPIRATION and tca.ZIPCODE = ca.ZIPCODE
+join fivetran_cdc.fvtrn_melio.fundingsources fs on fs.cardaccountid = ca.id
+left join fivetran_cdc.fvtrn_melio.payments p on fs.id = p.fundingsourceid
+LEFT JOIN prod.ANALYTICS.RISK_PAYMENTS rp ON rp.PAYMENT_ID = p.id
+where p.deletedat is null and p._fivetran_deleted = False
+and p.riskstatus != 'declined'
+and p.partnername<>'paypal'
+AND rp.org_ode_decision <> 'reject'
+and p.CREATEDAT >= dateadd(day, -7, current_date())"
+"RI Tagged Orgs, DM routings 026073150 236070545 124303162 031101334",https://redash.melioservices.com/queries/20289/source,"SELECT DISTINCT p.ID, p.CREATEDAT AS pmt_createdat, p.AMOUNT, p.status, p.riskstatus, p.organizationid
+FROM FVTRN_MELIO.PAYMENTS p
+    LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.ORGANIZATIONID
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS eo on eo.entity_Id = p.organizationid::string
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS eoo on eoo.entity_Id = p.vendorid::string
+    LEFT JOIN MONGO_TAGGING_TAGGING.ENTITYTAGS eooo on eooo.entity_Id = p.createdbyid::string
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON dm.ID = p.DELIVERYMETHODID
+WHERE (eo.""TAG"" = '649ad1bdc3f674380a059f7c' or eoo.""TAG"" = '65fae5bc267fb7ce6c7d909f' or eooo.""TAG"" = '67baf63587c267571af86d15')
+and dm.createdat >= dateadd(day, -30, current_date())
+and p.riskstatus<>'declined'
+AND p.CREATEDAT >= dateadd(day, -4, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"FVD FR DM Routing, Bad Vendors CC FR, Risky Browser",https://redash.melioservices.com/queries/23365/source,"select p.id, p.organizationid, p.amount, p.createdat, p.status, p.riskstatus, ba.routingnumber, p.partnername
+from fr_routing frout
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba on frout.routnum=ba.routingnumber
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on ba.id=dm.bankaccountid
+LEFT JOIN FVTRN_MELIO.PAYMENTS p on dm.id=p.deliverymethodid
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.FUNDINGSOURCES fs on p.fundingsourceid=fs.id
+where riskstatus<>'declined'
+and o.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -10, current_date())
+and p.CREATEDAT >= dateadd(day, -10, current_date())
+and p.partnername<>'paypal'
+and p.createorigin<>'ar-link'
+order by p.createdat DESC"
+"New Email Domains, Risky Browser",https://redash.melioservices.com/queries/23044/source,"Select p.id as pid, p.organizationid as org_id, p.createdat, p.amount, p.riskstatus, p.status, p.partnername
+from FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.deliverymethods dm on p.deliverymethodid=dm.id
+Where p.createdat>dateadd(day, -10, current_date())
+and dm.createdat > dateadd(day, -10, current_date())
+and p.riskstatus<>'declined'
+and (modelResult:features.payeeEaDomainCreationDays<20 or modelResult:features.payorEaDomainCreationDays<20)
+and p.amount>1000
+and p.partnername<>'paypal'
+group by 1,2,3,4,5,6,7,8,9,10
+order by 3 desc"
+Fraudulent card DM linking,https://redash.melioservices.com/queries/24127/source,"select o.COMPANYNAME as org_name, o.id as org_id, v.COMPANYNAME as vendor_name, dm.id as deliverymethod_id, dm.createdat as dmcreatedat, tca.name::string as original_tag_name, max(p.id)
+from tagged_card_accounts tca
+join fivetran_cdc.fvtrn_melio.cardaccounts ca on tca.lastname = ca.lastname and tca.zipcode = ca.zipcode
+join fivetran_cdc.fvtrn_melio.deliverymethods dm on dm.cardaccountid = ca.id
+left join fivetran_cdc.fvtrn_melio.payments p on dm.id = p.deliverymethodid
+left join fivetran_cdc.FVTRN_MELIO.VENDORS v on p.vendorid = v.id
+left join fivetran_cdc.FVTRN_MELIO.ORGANIZATIONS o on p.organizationid = o.id
+where (p.createdat >= dateadd(day, -5, current_date())) or (dm.createdat >= dateadd(day, -5, current_date()))
+and p.partnername<>'paypal'
+group by 1,2,3,4,5,6
+"
+"Payments with 071025661 routing, MM Fraud Ring",https://redash.melioservices.com/queries/23005/source,"select p.id, p.organizationid, p.createdat, dm.createdat as dmcreation, p.amount, bad.routingnumber, p.riskstatus, p.partnername, p.status
+from FVTRN_MELIO.PAYMENTS p
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid = dm.id
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS bad on dm.bankaccountid = bad.id
+where p.createdat > dateadd(day, -14, current_date())
+and dm.createdat > dateadd(day, -14, current_date())
+and baf.routingnumber = '071025661'
+and p.partnername <> 'fiserv_bmo'
+order by p.createdat desc"
+"Risky Vendor Emails, FVD FR DM Routing, Bad Vendors CC FR, Risky Browser",https://redash.melioservices.com/queries/22904/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, p.partnername, ba.routingnumber
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.deliverymethods dm on p.deliverymethodid = dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.organizations o on p.organizationid = o.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.bankaccounts ba on dm.bankaccountid = ba.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.VENDORS v on v.id = p.vendorid
+LEFT JOIN prod.ANALYTICS.RISK_EMAILAGE_VENDOR ev on p.id = ev.paymentid
+where dm.createdat > dateadd(day, -7, current_date())
+and p.amount > 2500
+and riskstatus <> 'declined'
+and dm.deliverytype not in ('check', 'virtual')
+and p.partnername <> 'paypal'
+order by 2 desc"
+"Reverse Phishing, Risky Vendor Emails, QBDT FR Alert",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"Reverse Phishing, Dormant Account Alert, Risky Vendor Emails",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"Reverse Phishing, New Email Domains",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"
+"Dormant Account Alert, Risky Vendor Emails, ATO v3 Alert",https://redash.melioservices.com/queries/22901/source,"Select p.id, p.amount, p.status, p.riskstatus, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation
+FROM FVTRN_MELIO.payments p 
+LEFT JOIN FVTRN_MELIO.organizations o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.deliverymethodid=dm.id
+where p.riskstatus in ('approved', 'pending')
+and dm.createdat > dateadd(day, -75, current_date())
+and dm.deliverytype<>'check'
+and p.scheduleddate < dateadd(day, +2, current_date())
+and p.scheduleddate > dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.scheduleddate desc"
+"Risky Vendor Emails, MM Fraud Ring",https://redash.melioservices.com/queries/22904/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, p.partnername, ba.routingnumber
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.deliverymethods dm on p.deliverymethodid = dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.organizations o on p.organizationid = o.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.bankaccounts ba on dm.bankaccountid = ba.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.VENDORS v on v.id = p.vendorid
+LEFT JOIN prod.ANALYTICS.RISK_EMAILAGE_VENDOR ev on p.id = ev.paymentid
+where dm.createdat > dateadd(day, -7, current_date())
+and p.amount > 2500
+and riskstatus <> 'declined'
+and dm.deliverytype not in ('check', 'virtual')
+and p.partnername <> 'paypal'
+order by 2 desc"
+"FVD FR DM Routing, Risky Browser",https://redash.melioservices.com/queries/23365/source,"select p.id, p.organizationid, p.amount, p.createdat, p.status, p.riskstatus, ba.routingnumber, p.partnername
+from fr_routing frout
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba on frout.routnum=ba.routingnumber
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on ba.id=dm.bankaccountid
+LEFT JOIN FVTRN_MELIO.PAYMENTS p on dm.id=p.deliverymethodid
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.FUNDINGSOURCES fs on p.fundingsourceid=fs.id
+where riskstatus<>'declined'
+and o.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -10, current_date())
+and p.CREATEDAT >= dateadd(day, -10, current_date())
+and p.partnername<>'paypal'
+and p.createorigin<>'ar-link'
+order by p.createdat DESC"
+"Suspicious Amount Payments, DM routings 026073150 236070545 124303162 031101334",https://redash.melioservices.com/queries/19462/source,"WITH last_action_table AS (SELECT    
+                organizationId,
+                max(id) AS last_action_id
+    FROM FIVETRAN_CDC.DECISION_ENGINE_DECISION.ORGANIZATIONDECISIONS
+    GROUP BY 1
+)
+
+SELECT DISTINCT(p.ID) AS PaymentID,
+concat('https://mos.production.melioservices.com/sherlock/general/live?paymentId=',p.id) as link,
+o.COMPANYNAME AS OrgCompanyName,
+p.organizationid,
+o.TAXIDTYPE, 
+p.AMOUNT,
+p.riskstatus,
+p.STATUS,
+p.createdat AS Pmtcreated,
+p.SCHEDULEDDATE AS PmtScheduledDate,
+p.partnername,
+od.decision AS ODE,
+o.createdat AS OrgCreatedAt,
+ba.ROUTINGNUMBER,
+v.COMPANYNAME AS VendorName,
+dm.createdat AS DmCreatedAt,
+v.CONTACTEMAIL AS VendorEmail,
+num_payments,
+json_extract_path_text(try_parse_json(red.modelResult), 'features.payorIdmMMScore') AS payorIdmMMScore,
+json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpNetworkScore') AS payorWpClientIpNetworkScore,
+json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpIdentityScore') AS payorWpClientIpIdentityScore
+FROM FVTRN_MELIO.PAYMENTS p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON p.id = red.paymentId
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o ON o.ID = p.ORGANIZATIONID
+LEFT JOIN last_action_table la ON o.id = la.organizationId
+JOIN DECISION_ENGINE_DECISION.ORGANIZATIONDECISIONS od on od.id = la.last_action_id
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm ON p.DELIVERYMETHODID = dm.ID
+JOIN FVTRN_MELIO.VENDORS v ON v.ID = dm.VENDORID
+JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+LEFT JOIN (SELECT organizationId, count(id) num_payments from FVTRN_MELIO.PAYMENTS GROUP BY 1) op ON op.organizationID = o.id
+WHERE p.amount BETWEEN 9000.00 AND 10000.00
+AND red.mode = 'live'
+AND json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpNetworkScore') > 0.600
+AND json_extract_path_text(try_parse_json(red.modelResult), 'features.payorWpClientIpIdentityScore') > 400
+AND od.decision != 'reject'
+AND ((ba.routingnumber = '026014902'
+OR ba.routingnumber = '041215663'
+OR ba.routingnumber = '124303120'
+OR ba.routingnumber = '073972181'
+OR ba.routingnumber = '084106768'
+OR ba.routingnumber = '103100195'
+OR ba.routingnumber = '031101279'
+OR ba.routingnumber = '124303201'
+OR ba.routingnumber = '021214891'
+OR ba.routingnumber = '124303162'
+OR ba.routingnumber = '124303214')
+or o.TAXIDTYPE = 'SSN')
+and dm.createdat > '2025-12-01'
+and p.createdat >= dateadd(day, -5, current_date())
+order by p.createdat desc"
+"Risky Vendor Emails, Explosive Growth",https://redash.melioservices.com/queries/22904/source,"SELECT p.id, p.organizationid, p.createdat as pcreation, dm.createdat as dmcreation, v.contactemail as vendoremail, p.amount, p.status, p.riskstatus, p.partnername, ba.routingnumber
+FROM FIVETRAN_CDC.FVTRN_MELIO.payments p
+LEFT JOIN FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.deliverymethods dm on p.deliverymethodid = dm.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.organizations o on p.organizationid = o.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.bankaccounts ba on dm.bankaccountid = ba.id
+LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.VENDORS v on v.id = p.vendorid
+LEFT JOIN prod.ANALYTICS.RISK_EMAILAGE_VENDOR ev on p.id = ev.paymentid
+where dm.createdat > dateadd(day, -7, current_date())
+and p.amount > 2500
+and riskstatus <> 'declined'
+and dm.deliverytype not in ('check', 'virtual')
+and p.partnername <> 'paypal'
+order by 2 desc"
+"FVD FR DM Routing, MM Fraud Ring, ATO v3 Alert",https://redash.melioservices.com/queries/23365/source,"select p.id, p.organizationid, p.amount, p.createdat, p.status, p.riskstatus, ba.routingnumber, p.partnername
+from fr_routing frout
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba on frout.routnum=ba.routingnumber
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on ba.id=dm.bankaccountid
+LEFT JOIN FVTRN_MELIO.PAYMENTS p on dm.id=p.deliverymethodid
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.FUNDINGSOURCES fs on p.fundingsourceid=fs.id
+where riskstatus<>'declined'
+and o.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -10, current_date())
+and p.CREATEDAT >= dateadd(day, -10, current_date())
+and p.partnername<>'paypal'
+and p.createorigin<>'ar-link'
+order by p.createdat DESC"
+"FVD FR DM Routing, Bad Vendors CC FR",https://redash.melioservices.com/queries/23365/source,"select p.id, p.organizationid, p.amount, p.createdat, p.status, p.riskstatus, ba.routingnumber, p.partnername
+from fr_routing frout
+LEFT JOIN FVTRN_MELIO.BANKACCOUNTS ba on frout.routnum=ba.routingnumber
+LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on ba.id=dm.bankaccountid
+LEFT JOIN FVTRN_MELIO.PAYMENTS p on dm.id=p.deliverymethodid
+LEFT JOIN FVTRN_MELIO.ORGANIZATIONS o on p.organizationid=o.id
+LEFT JOIN FVTRN_MELIO.FUNDINGSOURCES fs on p.fundingsourceid=fs.id
+where riskstatus<>'declined'
+and o.createdat >= dateadd(day, -14, current_date())
+and dm.createdat >= dateadd(day, -10, current_date())
+and p.CREATEDAT >= dateadd(day, -10, current_date())
+and p.partnername<>'paypal'
+and p.createorigin<>'ar-link'
+order by p.createdat DESC"
+"Reverse Phishing, Explosive Growth",https://redash.melioservices.com/queries/20473/source,"SELECT distinct p.id, p.organizationid, p.CREATEDAT, dm.createdat as DM_created, ba.ROUTINGNUMBER, p.status, p.riskstatus, p.partnername, p.amount
+FROM FVTRN_MELIO.PAYMENTS p 
+    LEFT JOIN FVTRN_MELIO.DELIVERYMETHODS dm on p.DELIVERYMETHODID = dm.ID
+    left JOIN FVTRN_MELIO.BANKACCOUNTS ba ON dm.BANKACCOUNTID = ba.ID
+    left join FVTRN_MELIO.RISKENGINEDECISIONS red ON red.PAYMENTID = p.id
+WHERE ((p.ISEXPEDITED = 'true' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.amount >= '14500' and modelresult:features.payeeEaEmailRiskScore >= 600 and modelresult:features.payeeEaEmailRiskScore != 'null')
+or (p.ISEXPEDITED = 'true' and ba.ROUTINGNUMBER in (026014902, 041215663, 031101279, 073972181, 084106768, 124303120, 124303162, 125109019, 121140399, 124303214, 124303201, 061000104, 096017418, 103100195)))
+and p.amount >= 7900
+and p.riskstatus = 'approved'
+and dm.DELIVERYTYPE not in ('check', 'virtual')
+and p.createdat >= dateadd(day, -3, current_date())
+and dm.createdat >= dateadd(day, -7, current_date())
+and p.partnername<>'paypal'
+order by p.createdat desc"

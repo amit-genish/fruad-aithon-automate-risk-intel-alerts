@@ -1,0 +1,116 @@
+time_window,alert,total_payments,fraud_payments,precision_pct
+1d,DarkNet Tagged Orgs,4,0,0.0
+1d,Explosive Growth,9,0,0.0
+1d,Failed Deleted FS,1,0,0.0
+1d,New Email Domains,1,0,0.0
+1d,Reverse Phishing,1,0,0.0
+1d,Risky Vendor Emails,5,1,20.0
+1d,Suspicious Amount Payments,1,1,100.0
+3d,(Risky) payment solutions FS routings,2,1,50.0
+3d,ATO v3 Alert,4,3,75.0
+3d,Bad Vendors CC FR,2,0,0.0
+3d,DM Linking Fraudulent/Risky,5,0,0.0
+3d,DM routings 026073150 236070545 124303162 031101334,5,3,60.0
+3d,DarkNet Tagged Orgs,6,0,0.0
+3d,Dormant Account Alert,4,0,0.0
+3d,Explosive Growth,17,0,0.0
+3d,FS Fraudulent Linking,1,1,100.0
+3d,FVD FR DM Routing,5,2,40.0
+3d,Failed Deleted FS,3,1,33.33
+3d,Failed No History,3,1,33.33
+3d,Fraud Ring,1,0,0.0
+3d,MM Fraud Ring,3,1,33.33
+3d,New Email Domains,4,0,0.0
+3d,Payments following blocked and deleted,1,0,0.0
+3d,QBDT FR Alert,11,0,0.0
+3d,RI Tagged Orgs,1,0,0.0
+3d,RTP Explosive Growth Alert,2,0,0.0
+3d,Reverse Phishing,1,0,0.0
+3d,Risky Browser,13,0,0.0
+3d,Risky Vendor Emails,12,2,16.67
+3d,Suspicious Amount Payments,3,3,100.0
+1w,(Risky) payment solutions FS routings,4,1,25.0
+1w,ATO v3 Alert,11,8,72.73
+1w,Bad Vendors CC FR,17,9,52.94
+1w,Cap1 Risky Amount Ring,1,0,0.0
+1w,DM Linking Fraudulent/Risky,30,5,16.67
+1w,DM routings 026073150 236070545 124303162 031101334,26,17,65.38
+1w,DarkNet Tagged Orgs,8,0,0.0
+1w,Dormant Account Alert,22,0,0.0
+1w,Explosive Growth,55,1,1.82
+1w,FS Fraudulent Linking,2,1,50.0
+1w,FVD FR DM Routing,14,4,28.57
+1w,Failed Deleted FS,9,5,55.56
+1w,Failed No History,5,2,40.0
+1w,Fast DW Alert,5,2,40.0
+1w,Fraud Ring,10,1,10.0
+1w,MM Fraud Ring,10,7,70.0
+1w,New Email Domains,14,2,14.29
+1w,Payments following blocked and deleted,3,0,0.0
+1w,Payments with 071025661 routing,1,0,0.0
+1w,QBDT FR Alert,31,1,3.23
+1w,RI Tagged Orgs,4,0,0.0
+1w,RTP Explosive Growth Alert,19,2,10.53
+1w,Reverse Phishing,9,0,0.0
+1w,Risky Browser,43,2,4.65
+1w,Risky Vendor Emails,43,9,20.93
+1w,Suspected Reverse Phishing,1,0,0.0
+1w,Suspicious Amount Payments,5,5,100.0
+2w,(Risky) payment solutions FS routings,9,1,11.11
+2w,ATO v3 Alert,21,12,57.14
+2w,Bad Vendors CC FR,55,21,38.18
+2w,Cap1 Risky Amount Ring,7,0,0.0
+2w,DM Linking Fraudulent/Risky,68,12,17.65
+2w,DM routings 026073150 236070545 124303162 031101334,68,33,48.53
+2w,DarkNet Tagged Orgs,26,0,0.0
+2w,Dormant Account Alert,63,0,0.0
+2w,Explosive Growth,160,3,1.88
+2w,FS Fraudulent Linking,25,1,4.0
+2w,FVD FR DM Routing,34,13,38.24
+2w,Failed Deleted FS,18,12,66.67
+2w,Failed No History,8,3,37.5
+2w,Fast DW Alert,12,2,16.67
+2w,Fraud Ring,44,4,9.09
+2w,Fraudulent card DM linking,4,4,100.0
+2w,Linked to Stolen Card,12,12,100.0
+2w,MM Fraud Ring,20,9,45.0
+2w,New Email Domains,33,10,30.3
+2w,Payments following blocked and deleted,4,0,0.0
+2w,Payments with 071025661 routing,6,1,16.67
+2w,QBDT FR Alert,83,3,3.61
+2w,RI Tagged Orgs,12,0,0.0
+2w,RTP Explosive Growth Alert,53,5,9.43
+2w,Reverse Phishing,43,2,4.65
+2w,Risky Browser,105,9,8.57
+2w,Risky Vendor Emails,101,18,17.82
+2w,Suspected Reverse Phishing,2,0,0.0
+2w,Suspicious Amount Payments,7,6,85.71
+1m,(Risky) payment solutions FS routings,25,1,4.0
+1m,ATO v3 Alert,40,29,72.5
+1m,Bad Vendors CC FR,122,55,45.08
+1m,Cap1 Risky Amount Ring,17,0,0.0
+1m,DM Linking Fraudulent/Risky,114,21,18.42
+1m,DM routings 026073150 236070545 124303162 031101334,317,144,45.43
+1m,DarkNet Tagged Orgs,61,0,0.0
+1m,Dormant Account Alert,147,0,0.0
+1m,Explosive Growth,278,7,2.52
+1m,FS Fraudulent Linking,33,5,15.15
+1m,FVD FR DM Routing,42,15,35.71
+1m,Failed Deleted FS,52,37,71.15
+1m,Failed No History,33,9,27.27
+1m,Fast DW Alert,88,52,59.09
+1m,Fraud Ring,115,12,10.43
+1m,Fraudulent card DM linking,4,4,100.0
+1m,Linked to Stolen Card,12,12,100.0
+1m,MM Fraud Ring,47,19,40.43
+1m,New Email Domains,76,17,22.37
+1m,Payments following blocked and deleted,8,0,0.0
+1m,Payments with 071025661 routing,22,7,31.82
+1m,QBDT FR Alert,220,11,5.0
+1m,RI Tagged Orgs,42,0,0.0
+1m,RTP Explosive Growth Alert,99,5,5.05
+1m,Reverse Phishing,115,5,4.35
+1m,Risky Browser,231,17,7.36
+1m,Risky Vendor Emails,205,40,19.51
+1m,Suspected Reverse Phishing,9,3,33.33
+1m,Suspicious Amount Payments,12,10,83.33
