@@ -73,17 +73,18 @@ with open("/tmp/risk_intel/alerts.xlsx", "wb") as f:
 ## Step 2 — Parse XLSX → sheet data + hyperlinks
 
 ```bash
-pip install openpyxl pandas --break-system-packages -q
+# Use uv (preferred). A pyproject.toml exists at <skill_dir>/pyproject.toml — uv sync installs deps.
+uv sync --project <skill_dir> -q
 
 # First run: verify column detection
-python <skill_dir>/scripts/parse_sheet.py /tmp/risk_intel/alerts.xlsx --print-columns
+uv run --project <skill_dir> python <skill_dir>/scripts/parse_sheet.py /tmp/risk_intel/alerts.xlsx --print-columns
 
 # Full parse — last 30 days (MVP scope)
-python <skill_dir>/scripts/parse_sheet.py /tmp/risk_intel/alerts.xlsx \
+uv run --project <skill_dir> python <skill_dir>/scripts/parse_sheet.py /tmp/risk_intel/alerts.xlsx \
     --out-dir /tmp/risk_intel/ --scope-days 30
 
 # Post-MVP: extend to 90 days
-# python <skill_dir>/scripts/parse_sheet.py /tmp/risk_intel/alerts.xlsx \
+# uv run --project <skill_dir> python <skill_dir>/scripts/parse_sheet.py /tmp/risk_intel/alerts.xlsx \
 #     --out-dir /tmp/risk_intel/ --scope-days 90
 ```
 
@@ -117,94 +118,37 @@ miss an alert even if its URL is uncertain.
    Redash by the alert name directly using the plugin's search capability
 4. Store results as `alert_queries.csv`: `alert_name, redash_url, sql_text`
 
+**`sql_text` MUST be the verbatim SQL returned by the Redash plugin — never
+summarize, compress, or manually transcribe it.** Truncated or rewritten SQL breaks
+the incremental value step in hard-to-diagnose ways (missing ORDER BY in QUALIFY,
+dropped GROUP BY, wrong aliases).
+
 Any alert for which SQL cannot be retrieved (URL broken, query deleted) should
-be logged with `sql_text = NULL` and excluded from downstream processing.
+be logged with `sql_text = Fail to fetch` and excluded from downstream processing.
 
 ## Step 4 — Snowflake is_fraud query
 
-Run this query directly via the Snowflake MCP. If the result set is large enough
-to overflow context, immediately write the raw result to
-`/tmp/risk_intel/snowflake_fraud.csv` before doing anything else with it.
+`PROD.ANALYTICS.RISK_PAYMENTS` has pre-computed `IS_FRAUD` and `IS_BAD` columns —
+use them directly. Run via the TypeScript script (no MCP, no batching):
 
-```sql
-WITH payment_ids AS (
-  -- Inline the payment IDs from sheet_data.csv
-  -- (Claude should construct this from the CSV, e.g. using a VALUES list
-  --  or by reading from a stage if > 5000 IDs)
-  SELECT COLUMN1::VARCHAR AS payment_id
-  FROM VALUES {payment_id_values_list}
-),
-payment_fraud_tags AS (
-  SELECT DISTINCT et.entity_id AS payment_id
-  FROM fivetran_cdc.mongo_tagging_tagging.entitytags et
-  JOIN fivetran_cdc.mongo_tagging_tagging.tags t ON et.tag = t._id
-  WHERE et.entity = 'payment'
-    AND et.deleted_at IS NULL
-    AND t.deleted_at IS NULL
-    AND lower(t.name) IN (
-        'reverse-phishing', 'unilateral-vendor-fraud', 'ato',
-        'fraudulent-payment', 'eto', 'fraudulent-dm'
-    )
-),
-base AS (
-  SELECT
-    rp.payment_id,
-    rp.last_risk_decision_subcategory,
-    rp.last_risk_decision_code_description,
-    rp.false_decline_potential,
-    rp.last_engine_reason,
-    ap.money_flow,
-    od.risk_ode_decision,
-    od.risk_ode_decision_labels::varchar AS risk_ode_decision_labels,
-    rpl.mo_label,
-    loss_attr.highlevelclaim,
-    loss_attr.reason,
-    pft.payment_id AS fraud_tag_payment_id
-  FROM payment_ids pid
-  JOIN PROD.ANALYTICS.RISK_PAYMENTS rp ON rp.payment_id = pid.payment_id
-  LEFT JOIN prod.analytics.analytics_payments_history ap
-    ON ap.payment_id = rp.payment_id AND ap.data_interval_end = (SELECT MAX(data_interval_end) FROM prod.analytics.analytics_payments_history)
-  LEFT JOIN prod.analytics.payments_parent_vendor_history p
-    ON p.id = rp.payment_id AND p.data_interval_end = (SELECT MAX(data_interval_end) FROM prod.analytics.payments_parent_vendor_history)
-  LEFT JOIN prod.analytics.organization_dim_history od
-    ON od.organization_id = p.organizationid AND od.data_interval_end = (SELECT MAX(data_interval_end) FROM prod.analytics.organization_dim_history)
-  LEFT JOIN prod.analytics.risk_payments_labeling_history rpl
-    ON rpl.payment_id = rp.payment_id AND rpl.data_interval_end = (SELECT MAX(data_interval_end) FROM prod.analytics.risk_payments_labeling_history)
-  LEFT JOIN FIVETRAN_CDC.FVTRN_MELIO.LOSSES loss_attr
-    ON loss_attr.paymentid = rp.payment_id
-  LEFT JOIN payment_fraud_tags pft ON pft.payment_id = rp.payment_id
-)
-SELECT
-  payment_id,
-  CASE
-    WHEN (
-      (last_risk_decision_subcategory = 'fraud'
-       OR last_risk_decision_code_description = 'problematic vendor')
-      AND (false_decline_potential = false
-           OR false_decline_potential IS NULL
-           OR money_flow = 'ar'
-           OR last_engine_reason IN ('declineKybMoneyInReject','declineVendorOrgRejectFraud'))
-    )
-    OR (risk_ode_decision = 'reject' AND risk_ode_decision_labels ILIKE '%stolen data%')
-    OR mo_label IN ('FRAUD OTHER','VENDOR-SIDE FRAUD','ATO','SF','3RD PARTY ATO')
-    OR (lower(highlevelclaim) = 'fraud'
-        AND (lower(reason) <> 'friendly fraud' OR reason IS NULL))
-    OR fraud_tag_payment_id IS NOT NULL
-    THEN true ELSE false
-  END AS is_fraud
-FROM base
+```bash
+# First time in a new shell: install deps
+cd <skill_dir> && npm install
+
+# Run (opens a browser SSO window on first use per session)
+SNOWFLAKE_USER=<your-email> \
+  npx tsx <skill_dir>/scripts/fetch_fraud.ts \
+    /tmp/risk_intel/sheet_data.csv \
+    /tmp/risk_intel/snowflake_fraud.csv
 ```
 
-Save the result as `snowflake_fraud.csv` (`payment_id`, `is_fraud`).
+`SNOWFLAKE_ACCOUNT` is read from the environment (set in ~/.zshrc).
+Optional env vars: `SNOWFLAKE_AUTHENTICATOR` (default: `EXTERNALBROWSER`),
+`SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`.
 
-**Payment ID list size**: construct the `payment_ids` CTE as a VALUES list directly
-in the query. If the list is very large (> ~5000 IDs) and the MCP call becomes
-unwieldy, write the IDs to a file and use a Snowflake stage or temp table instead:
-```sql
-CREATE TEMPORARY TABLE tmp_payment_ids (payment_id VARCHAR);
-INSERT INTO tmp_payment_ids VALUES (...);
--- then replace the payment_ids CTE with: SELECT payment_id FROM tmp_payment_ids
-```
+The script issues a single VALUES-CTE query for all IDs — no batching needed.
+Any payment_id not in RISK_PAYMENTS is written with `is_fraud=false`.
+Output: `snowflake_fraud.csv` with columns `payment_id, is_fraud, is_bad`.
 
 ---
 

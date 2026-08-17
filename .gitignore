@@ -1,0 +1,42 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+
+# Python dependencies and build artifacts
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# uv lock file (reproducible installs handled via pyproject.toml)
+uv.lock
+
+# Snowflake logs
+snowflake.log
+*.log
+
+# macOS
+.DS_Store
+
+# Pipeline run outputs (generated at runtime)
+precision.csv
+alert_queries.csv
+incremental_value.csv
+modified_queries.json
+*.zip
+
+# Claude Code compiled skill packages
+*.skill
+
+# Claude Code local settings (contains personal tokens/paths)
+.claude/settings.local.json
+**/.claude/settings.local.json
+
+# IDE
+.vscode/
+.idea/
