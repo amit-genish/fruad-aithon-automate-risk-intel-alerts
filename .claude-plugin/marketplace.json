@@ -2,7 +2,10 @@
   "name": "aithon",
   "version": "1.0.0",
   "description": "Risk Intel Alert automation skills for Melio fraud analytics",
-  "owner": "amit-genish",
+  "owner": {
+    "name": "Amit Genish",
+    "github": "amit-genish"
+  },
   "plugins": [
     {
       "name": "risk-alert",
