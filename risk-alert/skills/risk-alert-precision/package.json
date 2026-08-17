@@ -1,0 +1,16 @@
+{
+  "name": "risk-alert-precision",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "csv-parse": "^5.5.6",
+    "csv-stringify": "^6.4.6",
+    "snowflake-sdk": "^1.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.0"
+  }
+}

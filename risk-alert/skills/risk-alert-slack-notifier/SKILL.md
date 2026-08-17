@@ -4,25 +4,29 @@ description: >
   Posts Risk Intel Alert recommendations to the #risk_fraud_squad Slack channel.
   For each alert that passed the incremental value threshold, sends a formatted
   thread with precision metrics, incremental value metrics across both timeframes,
-  and the raw alert SQL as a follow-up reply.
+  the raw alert SQL, and (when available) the rule candidate JSON and conversion
+  notes as additional thread replies.
 
   USE THIS SKILL as the final step of the Risk Intel AIthon E2E pipeline, after
-  risk-alert-incremental-value. Also invoke when asked to send risk alert
-  notifications, post to risk_fraud_squad, or notify Fraud Analytics of qualifying alerts.
+  risk-alert-to-rules. Also invoke when asked to send risk alert notifications,
+  post to risk_fraud_squad, or notify Fraud Analytics of qualifying alerts.
 ---
 
 # Risk Alert Slack Notifier Skill
 
-Reads `incremental_value.csv` and `alert_queries.csv`, posts one Slack thread
-per qualifying alert to `#risk_fraud_squad`.
+Reads `incremental_value.csv`, `alert_queries.csv`, and (optionally)
+`rule_candidate_*.json` + `rule_conversion_report.md`, then posts one Slack
+thread per qualifying alert to `#risk_fraud_squad`.
 
 ## Inputs
 
-| File | Source |
-|------|--------|
-| `incremental_value.csv` | Output of risk-alert-incremental-value |
-| `alert_queries.csv` | Output of risk-alert-precision |
-| `precision.csv` | Output of risk-alert-precision (for precision per timeframe) |
+| File | Source | Required |
+|------|--------|----------|
+| `incremental_value.csv` | Output of risk-alert-incremental-value | ✅ |
+| `alert_queries.csv` | Output of risk-alert-precision | ✅ |
+| `precision.csv` | Output of risk-alert-precision (for precision per timeframe) | ✅ |
+| `rule_candidate_{alert_name}.json` | Output of risk-alert-to-rules (one per qualifying alert) | Optional |
+| `rule_conversion_report.md` | Output of risk-alert-to-rules | Optional |
 
 ---
 
@@ -100,6 +104,32 @@ Post the alert's SQL as a thread reply:
 ```
 
 Use `slack_send_message` with `thread_ts` = the ts from the main message.
+
+### Second reply — Rule candidate (if available)
+
+Check whether `rule_candidate_{snake_case_alert_name}.json` exists in `run_dir`.
+The snake_case filename mirrors the naming used by risk-alert-to-rules (e.g.,
+`rule_candidate_ato_v3_alert.json` for alert "ATO v3 Alert").
+
+If the file exists, post a third reply in the same thread:
+
+```
+📐 *Rule candidate JSON:*
+```json
+{full contents of rule_candidate_{alert_name}.json}
+```
+```
+
+Then extract the per-alert section from `rule_conversion_report.md` for this
+alert (the section headed `### {N}. {alert_name}`) and post it as a fourth reply:
+
+```
+📝 *Conversion notes:*
+{per-alert section text from rule_conversion_report.md, formatted as-is}
+```
+
+If neither file exists (risk-alert-to-rules was skipped or failed), do not post
+the rule replies — continue to the next alert silently.
 
 ## Step 4 — Summary
 

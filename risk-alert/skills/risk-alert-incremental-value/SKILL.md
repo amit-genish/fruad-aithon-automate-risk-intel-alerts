@@ -70,7 +70,7 @@ Read `alert_queries.csv`, get the `sql_text` for each alert.
 For each alert's SQL, identify and replace date/time filter clauses to match each
 target timeframe. This is the one reasoning step — do it carefully:
 
-**Write to `assumptions_{alert_name}.txt` before running any query:**
+**Write to `assumptions_{alert_name}.txt` before finalising any SQL:**
 ```
 Alert: <name>
 Original date filters found:
@@ -86,9 +86,6 @@ Confidence: high / medium / low
 If low → stop and ask for guidance rather than proceeding with a wrong query.
 ```
 
-**Known schema fixes to apply when modifying alert SQL:**
-- `FVTRN_MELIO.RISKENGINEDECISIONS` → `FIVETRAN_CDC.FVTRN_MELIO.RISKENGINEDECISIONS` (add full prefix if missing)
-
 **Modification rules:**
 - Replace date filters that scope to "recent" payments with the target timeframe bounds
 - If a column represents payment creation/scheduling date → replace
@@ -101,27 +98,75 @@ If low → stop and ask for guidance rather than proceeding with a wrong query.
 After writing assumptions, verify them (re-read the SQL and the assumptions file)
 before proceeding. If you have low confidence in the modification, stop and ask.
 
-## Step 3 — Build and run the full query
+### SQL fixes required before adding to modified_queries.json
 
-For each (alert × timeframe), fill in the query template from
-`<skill_dir>/references/query_template.sql`:
-
-1. Replace `{MODIFIED_ALERT_SQL}` with the timeframe-adjusted alert SQL
-2. Replace `{RUN_DATE}` with `CURRENT_TIMESTAMP()`
-
-**Run each query in a sub-agent** to avoid large Snowflake results overflowing context.
-The sub-agent receives the filled-in SQL and writes the result (one row: manual_review_load,
-fraud_count, bad_rate_pct, fraud_tpv) to `results_{alert_name}_{timeframe}.json`.
-
-Sub-agent prompt template:
+**1. Qualify all unresolved table references with `FIVETRAN_CDC.` prefix.**
+Any bare `FVTRN_MELIO.*`, `DECISION_ENGINE_DECISION.*`, or `MONGO_TAGGING_TAGGING.*`
+reference will fail. Prefix everything:
+```sql
+-- Before:  FROM FVTRN_MELIO.PAYMENTS p
+-- After:   FROM FIVETRAN_CDC.FVTRN_MELIO.PAYMENTS p
 ```
-Run this Snowflake query and save the result as JSON to {output_path}.
-The result should be a single row with columns: manual_review_load, fraud_count,
-bad_rate_pct, fraud_tpv.
 
-SQL:
-{filled_query}
+**2. The subquery must expose a column named `payment_id`.**
+The template joins `alert_payments.payment_id`. Redash SQLs often select `p.id`
+without an alias — add `AS payment_id`:
+```sql
+-- Before:  SELECT p.id, p.organizationid, ...
+-- After:   SELECT p.id AS payment_id, p.organizationid, ...
 ```
+
+**3. Remove any trailing ORDER BY** — the script strips it automatically, but
+double-check that no ORDER BY in a subquery is accidentally removed.
+
+### Alerts with known issues — mark as error, skip
+
+- **Fraud Ring**: fails with `invalid identifier 'PROXY'` — Redash alias not in raw tables.
+- **RISKENGINEDECISIONS full-scan queries** (MM Fraud Ring, New Email Domains, Explosive
+  Growth, Dormant Account): may be very slow over large windows; mark error if they time out.
+
+### Write modified_queries.json
+
+After writing all assumptions files, output `/tmp/risk_intel/modified_queries.json`:
+```json
+[
+  {
+    "alert_name": "Bad Vendors CC FR",
+    "timeframe": "last_2w",
+    "modified_sql": "SELECT p.id AS payment_id, ... WHERE dm.createdat >= DATEADD('day',-14,CURRENT_DATE()) ..."
+  },
+  {
+    "alert_name": "Bad Vendors CC FR",
+    "timeframe": "mature_90_30",
+    "modified_sql": "SELECT p.id AS payment_id, ... WHERE dm.createdat BETWEEN DATEADD('day',-90,CURRENT_DATE()) AND DATEADD('day',-30,CURRENT_DATE()) ..."
+  },
+  ...
+]
+```
+
+Include one entry per (alert × timeframe). Alerts skipped due to known issues should be
+omitted from the JSON (their result files will be absent; Step 4 treats them as zeros).
+
+## Step 3 — Run all queries via the TypeScript script
+
+```bash
+# First time in a new shell: install deps
+cd <skill_dir> && npm install
+
+# Run (opens a browser SSO window on first use per session)
+SNOWFLAKE_USER=<your-email> \
+  npx tsx <skill_dir>/scripts/run_queries.ts \
+    /tmp/risk_intel/modified_queries.json \
+    /tmp/risk_intel/
+```
+
+`SNOWFLAKE_ACCOUNT` is read from the environment (set in ~/.zshrc).
+Optional env vars: `SNOWFLAKE_AUTHENTICATOR` (default: `EXTERNALBROWSER`),
+`SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`.
+
+The script runs queries sequentially, wrapping each SQL in `query_template.sql`.
+Each writes `result_{alert_name}_{timeframe}.json` to the output dir.
+Errors are caught per-query and written as zeros + error message — the script never aborts early.
 
 ## Step 4 — Collect results and apply threshold
 

@@ -1,0 +1,13 @@
+{
+  "name": "aithon",
+  "version": "1.0.0",
+  "description": "Risk Intel Alert automation skills for Melio fraud analytics",
+  "owner": "amit-genish",
+  "plugins": [
+    {
+      "name": "risk-alert",
+      "source": "./risk-alert",
+      "description": "End-to-end Risk Intel Alert pipeline: precision calculation, incremental value analysis, rule conversion, and Slack notifications for #risk_fraud_squad"
+    }
+  ]
+}
