@@ -119,6 +119,54 @@ without an alias — add `AS payment_id`:
 **3. Remove any trailing ORDER BY** — the script strips it automatically, but
 double-check that no ORDER BY in a subquery is accidentally removed.
 
+**4. CTE-based alert SQLs require `full_sql`, not `modified_sql`.**
+
+If the alert's SQL starts with `WITH` (i.e., it defines its own CTEs), it **cannot** be
+placed inside the template's `alert_payments AS (...)` CTE — Snowflake does not allow
+nested `WITH` blocks. Use `full_sql` instead of `modified_sql` in the JSON entry.
+
+To build `full_sql`, merge the alert's CTEs into the template's WITH block:
+
+1. **Lift** all CTE definitions from the alert's `WITH` clause to the top of the outer `WITH`
+2. **Replace** `alert_payments AS ( {MODIFIED_ALERT_SQL} )` with just the final `SELECT`
+   from the alert's SQL (the SELECT that references those CTEs), minus its `ORDER BY`
+3. **Continue** with the template's own CTEs (`first_decisions`, `incremental_payments`,
+   `payment_with_fraud`) and final SELECT unchanged
+
+Example — alert SQL with CTEs:
+```sql
+-- Alert SQL (CTE-based):
+WITH
+todays_payments AS (SELECT pmt.id AS payment_id, ... WHERE pmt.CREATEDAT::date = current_timestamp::date),
+ato_v3_scores AS (SELECT ... WHERE _FIVETRAN_SYNCED between ... and current_timestamp),
+...
+SELECT max(tp.payment_id) as payment_id, ... FROM todays_payments tp JOIN ato_v3_scores ... WHERE ...
+GROUP BY tp.ORGANIZATIONID
+ORDER BY ...
+```
+
+Becomes `full_sql`:
+```sql
+WITH
+-- Alert's own CTEs at top level (date filters modified for timeframe):
+todays_payments AS (SELECT pmt.id AS payment_id, ... WHERE pmt.CREATEDAT >= DATEADD('day',-14,CURRENT_DATE())),
+ato_v3_scores AS (SELECT ... WHERE _FIVETRAN_SYNCED between DATEADD('day',-14,CURRENT_DATE()) and current_timestamp),
+...,
+-- Final SELECT from alert becomes alert_payments (no ORDER BY):
+alert_payments AS (
+    SELECT max(tp.payment_id) as payment_id, ... FROM todays_payments tp JOIN ato_v3_scores ... WHERE ...
+    GROUP BY tp.ORGANIZATIONID
+),
+-- Template CTEs continue unchanged:
+first_decisions AS (...),
+incremental_payments AS (...),
+payment_with_fraud AS (...)
+SELECT COUNT(*) AS manual_review_load, ... FROM payment_with_fraud
+```
+
+Use `"full_sql"` as the key in modified_queries.json (instead of `"modified_sql"`) — the
+runner uses `full_sql` directly, bypassing the template wrapper.
+
 ### Alerts with known issues — mark as error, skip
 
 - **Fraud Ring**: fails with `invalid identifier 'PROXY'` — Redash alias not in raw tables.
@@ -127,7 +175,11 @@ double-check that no ORDER BY in a subquery is accidentally removed.
 
 ### Write modified_queries.json
 
-After writing all assumptions files, output `/tmp/risk_intel/modified_queries.json`:
+After writing all assumptions files, output `{run_dir}/modified_queries.json`.
+
+Use `"modified_sql"` for simple SQLs (no top-level `WITH`); use `"full_sql"` for CTE-based
+SQLs (see fix #4 above). The runner checks `full_sql` first, falls back to `modified_sql`.
+
 ```json
 [
   {
@@ -139,6 +191,11 @@ After writing all assumptions files, output `/tmp/risk_intel/modified_queries.js
     "alert_name": "Bad Vendors CC FR",
     "timeframe": "mature_90_30",
     "modified_sql": "SELECT p.id AS payment_id, ... WHERE dm.createdat BETWEEN DATEADD('day',-90,CURRENT_DATE()) AND DATEADD('day',-30,CURRENT_DATE()) ..."
+  },
+  {
+    "alert_name": "ATO v3 Alert",
+    "timeframe": "last_2w",
+    "full_sql": "WITH\ntodays_payments AS (...),\nato_v3_scores AS (...),\n...,\nalert_payments AS (\n  SELECT max(tp.payment_id) as payment_id, ... GROUP BY ...\n),\nfirst_decisions AS (...),\n...\nSELECT COUNT(*) AS manual_review_load, ... FROM payment_with_fraud"
   },
   ...
 ]
