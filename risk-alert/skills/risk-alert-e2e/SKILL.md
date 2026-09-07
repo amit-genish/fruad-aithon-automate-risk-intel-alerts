@@ -2,10 +2,12 @@
 name: risk-alert-e2e
 description: >
   End-to-end Risk Intel Alert automation pipeline. Runs the full flow:
-  precision calculation → incremental value analysis → rule conversion →
+  (optional) precision calculation → incremental value analysis → rule conversion →
   Slack notifications. Scheduled to run Mon–Sat early morning TLV time.
-  Chains risk-alert-precision, risk-alert-incremental-value,
-  risk-alert-to-rules, and risk-alert-slack-notifier in sequence,
+  By default skips the precision stage and goes straight to incremental value
+  using all unique alert names from the last ~30 days of the spreadsheet.
+  Chains risk-alert-incremental-value, risk-alert-to-rules, and
+  risk-alert-slack-notifier in sequence (plus optionally risk-alert-precision),
   passing files between steps via a shared run directory.
 
   USE THIS SKILL when asked to run the full risk alert pipeline, trigger the
@@ -15,7 +17,7 @@ description: >
 
 # Risk Alert E2E Skill
 
-Orchestrates the four pipeline skills in sequence. Each step writes outputs
+Orchestrates the pipeline skills in sequence. Each step writes outputs
 to a shared run directory; the next step reads from it.
 
 ## Run directory
@@ -25,12 +27,24 @@ All files for a single run are stored under:
 /tmp/risk_intel_runs/{YYYYMMDD}/
 ```
 
-## Full pipeline
+## Default pipeline (skip-precision mode)
+
+```
+[spreadsheet download + Redash SQL fetch]
+  ↓ alert_queries.csv  (no precision.csv)
+risk-alert-incremental-value  (all alerts qualify — no precision filter)
+  ↓ incremental_value.csv
+risk-alert-to-rules
+  ↓ rule_candidate_*.json, rule_conversion_report.md
+risk-alert-slack-notifier  (includes rule conversion summary)
+```
+
+## Full pipeline (with precision)
 
 ```
 risk-alert-precision
   ↓ precision.csv, alert_queries.csv
-risk-alert-incremental-value
+risk-alert-incremental-value  (filters alerts with precision_pct >= 10)
   ↓ incremental_value.csv
 risk-alert-to-rules
   ↓ rule_candidate_*.json, rule_conversion_report.md
@@ -107,9 +121,28 @@ and how to install it. Do not proceed to the pipeline steps.
 
 ---
 
-## Ask: Slack or report only?
+## Ask: Precision mode?
 
 After prerequisites pass, ask the user (or check the invocation context):
+
+> **Run the precision stage, or skip it and go straight to incremental value?**
+>
+> - `skip` *(default)* — download the spreadsheet, extract all unique alert names from the
+>   last ~30 days, fetch their Redash SQL, and proceed directly to incremental value.
+>   All alerts are treated as qualifying (no precision threshold applied).
+> - `full` — run the complete `risk-alert-precision` skill first; only alerts with
+>   `precision_pct >= 10` proceed to incremental value.
+
+If invoked by the scheduler (non-interactive), default to `skip`.
+If invoked interactively and no preference is given, default to `skip` without asking.
+
+Store the answer as `PRECISION_MODE` (`skip` or `full`).
+
+---
+
+## Ask: Slack or report only?
+
+After the precision mode is set, ask the user (or check the invocation context):
 
 > **Send Slack messages to #risk_fraud_squad, or write a local report only?**
 >
@@ -135,7 +168,9 @@ import os; os.makedirs(run_dir, exist_ok=True)
 print(f"Run directory: {run_dir}")
 ```
 
-### Step 2 — Run risk-alert-precision
+### Step 2 — Populate alert_queries.csv
+
+**If `PRECISION_MODE=full`:**
 
 Invoke the `risk-alert-precision` skill. Pass `run_dir` as the output directory
 so all files land there.
@@ -147,10 +182,42 @@ Expected outputs in `run_dir`:
 If precision step fails or produces 0 rows: log error, post a failure notice to
 `#risk_fraud_squad` (if `OUTPUT_MODE=slack`), and stop.
 
+**If `PRECISION_MODE=skip` (default):**
+
+Produce `alert_queries.csv` directly without running precision:
+
+1. **Download the spreadsheet** — use the same Google Drive file ID as the precision
+   skill. Download as XLSX to `{run_dir}/risk_intel_alerts.xlsx`.
+
+2. **Parse alert names from last ~30 days** — run the precision skill's `parse_sheet.py`
+   script to get `sheet_data.csv` and `alert_links.json`:
+   ```bash
+   uv run --project "$PRECISION_DIR" python "$PRECISION_DIR/scripts/parse_sheet.py" \
+     {run_dir}/risk_intel_alerts.xlsx {run_dir}
+   ```
+   Then extract unique alert names that appear in `sheet_data.csv` within the last 30 days
+   (filter by the date column to `>= CURRENT_DATE - 30`). These are the alerts to process.
+
+3. **Fetch SQL from Redash** — for each alert name found in `alert_links.json`, fetch
+   the Redash query SQL exactly as the precision skill does (Step 3 of risk-alert-precision).
+   Store results as `{run_dir}/alert_queries.csv` with columns: `alert_name, redash_url, sql_text`.
+
+4. **No `precision.csv` is written** — this is intentional. The incremental value skill
+   will detect its absence and skip the precision filter (see Step 3 note below).
+
+If the spreadsheet cannot be downloaded or 0 alert names are found: log error, post
+failure notice to `#risk_fraud_squad` (if `OUTPUT_MODE=slack`), and stop.
+
 ### Step 3 — Run risk-alert-incremental-value
 
 Invoke `risk-alert-incremental-value`. Read inputs from `run_dir`, write outputs
 to `run_dir`.
+
+**Important — precision filter behaviour:**
+- If `precision.csv` exists in `run_dir` (`PRECISION_MODE=full`): the IV skill applies
+  its normal filter (keep alerts with `precision_pct >= 10`).
+- If `precision.csv` is absent (`PRECISION_MODE=skip`): skip Step 1 of the IV skill
+  entirely and treat **all** alerts in `alert_queries.csv` as qualifying.
 
 Expected outputs:
 - `incremental_value.csv`
@@ -191,8 +258,8 @@ Print to stdout:
 ```
 ✅ Risk Intel E2E run complete
 Run date: {date}
-Precision step: {N} alerts evaluated, {M} above threshold
-Incremental value step: {K} alerts passed escalation threshold
+Precision stage: {skipped | N alerts evaluated, M above threshold}
+Incremental value step: {N} alerts processed, {K} passed escalation threshold
 Rule conversion: {J} rule candidates written, {R} fully mappable
 Output: {K} threads sent to #risk_fraud_squad  |  Report: {run_dir}/report.md
 Run directory: {run_dir}
@@ -222,12 +289,14 @@ When scheduled, `OUTPUT_MODE` defaults to `slack`.
 | Failure point | Action |
 |--------------|--------|
 | Prerequisite missing | Print install instructions, stop |
-| Precision step fails | Post to #risk_fraud_squad (slack mode) or write to report (report mode): "⚠️ Risk Intel daily run failed at precision step. Manual check required." Stop. |
+| Precision step fails (`PRECISION_MODE=full`) | Post to #risk_fraud_squad (slack mode) or write to report (report mode): "⚠️ Risk Intel daily run failed at precision step. Manual check required." Stop. |
+| Spreadsheet download fails (`PRECISION_MODE=skip`) | Post/write: "⚠️ Risk Intel daily run failed: could not download alert spreadsheet." Stop. |
+| Zero alert names extracted from spreadsheet | Post/write: "📋 Risk Intel run: no alerts found in last 30 days of spreadsheet." Stop. |
 | Incremental value step fails for one alert | Log, continue with others, include failures in run summary |
 | Rule conversion step fails entirely | Log error, continue to output step; output will skip rule content for all alerts |
 | Rule conversion: Chalk feature store unavailable | Flag all conditions as unmapped, still write skeleton rule files |
 | Slack send fails | Log, continue, report at end |
-| Zero alerts in sheet | Post/write: "📋 Risk Intel run: no payments in scope for today's window." |
+| Zero alerts pass IV threshold | Post/write: "📋 Risk Intel run: no alerts passed the escalation threshold today." |
 
 ---
 
