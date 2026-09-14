@@ -6,9 +6,9 @@
 -- the timeframe bounds before running.
 --
 -- Parameters to substitute before running:
---   {MODIFIED_ALERT_SQL}  — the alert's Redash SQL with date
---                           filters replaced for this timeframe
---   {RUN_DATE}            — CURRENT_TIMESTAMP() for daily runs
+--   MODIFIED_ALERT_SQL  — the alert's Redash SQL with date
+--                         filters replaced for this timeframe
+--   RUN_DATE            — CURRENT_TIMESTAMP() for daily runs
 -- ============================================================
 
 WITH
@@ -29,7 +29,8 @@ first_decisions AS (
         ed.entityid AS payment_id,
         ed.decision,
         ed.source,
-        rdc.subcategory
+        rdc.subcategory,
+        ed.CREATEDAT AS first_decision_at
     FROM FIVETRAN_CDC.decision_engine_decision.entitydecisions ed
     LEFT JOIN FIVETRAN_CDC.decision_engine_decision.riskdecisioncodes rdc
         ON rdc.legacyriskdecisioncode = ed.riskdecisioncodeid
@@ -37,15 +38,34 @@ first_decisions AS (
     QUALIFY ROW_NUMBER() OVER (PARTITION BY ed.entityid ORDER BY ed.CREATEDAT ASC) = 1
 ),
 
--- ── Step 3: Incremental payments ──────────────────────────────────────────
+-- ── Step 3: Subsequent non-policy blocks ──────────────────────────────────
+-- Payments that got a non-policy/compliance block after an initial policy block.
+-- These are NOT incremental — the ecosystem would have caught them anyway.
+subsequent_nonpolicy_blocks AS (
+    SELECT DISTINCT ed.entityid AS payment_id
+    FROM FIVETRAN_CDC.decision_engine_decision.entitydecisions ed
+    LEFT JOIN FIVETRAN_CDC.decision_engine_decision.riskdecisioncodes rdc
+        ON rdc.legacyriskdecisioncode = ed.riskdecisioncodeid
+    JOIN first_decisions fd
+        ON fd.payment_id = ed.entityid
+        AND fd.subcategory IN ('policy', 'compliance')
+        AND ed.CREATEDAT > fd.first_decision_at
+    WHERE ed.entitytype = 'payment'
+      AND ed.decision NOT IN ('approved', 'pending')
+      AND COALESCE(rdc.subcategory, '') NOT IN ('policy', 'compliance')
+),
+
+-- ── Step 4: Incremental payments ──────────────────────────────────────────
 -- Payments the alert catches that the ecosystem would NOT have caught:
--- first decision was auto-approve OR blocked for non-fraud (policy/compliance).
+-- first decision was auto-approve OR blocked for policy/compliance with no
+-- subsequent non-policy block (meaning the ecosystem wouldn't have flagged it).
 incremental_payments AS (
     SELECT ap.payment_id
     FROM alert_payments ap
     JOIN first_decisions fd ON fd.payment_id = ap.payment_id
-    WHERE fd.subcategory IN ('policy', 'compliance')
-       OR (fd.source = 'system' AND fd.decision = 'approve')
+    LEFT JOIN subsequent_nonpolicy_blocks snb ON snb.payment_id = ap.payment_id
+    WHERE (fd.source = 'system' AND fd.decision = 'approve')
+       OR (fd.subcategory IN ('policy', 'compliance') AND snb.payment_id IS NULL)
 ),
 
 -- ── Step 4: Attach is_fraud and amount from RISK_PAYMENTS ─────────────────
