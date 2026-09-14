@@ -6,9 +6,9 @@
 -- the timeframe bounds before running.
 --
 -- Parameters to substitute before running:
---   {MODIFIED_ALERT_SQL}  — the alert's Redash SQL with date
---                           filters replaced for this timeframe
---   {RUN_DATE}            — CURRENT_TIMESTAMP() for daily runs
+--   MODIFIED_ALERT_SQL  — the alert's Redash SQL with date
+--                         filters replaced for this timeframe
+--   RUN_DATE            — CURRENT_TIMESTAMP() for daily runs
 -- ============================================================
 
 WITH
@@ -29,7 +29,8 @@ first_decisions AS (
         ed.entityid AS payment_id,
         ed.decision,
         ed.source,
-        rdc.subcategory
+        rdc.subcategory,
+        ed.CREATEDAT AS first_decision_at
     FROM FIVETRAN_CDC.decision_engine_decision.entitydecisions ed
     LEFT JOIN FIVETRAN_CDC.decision_engine_decision.riskdecisioncodes rdc
         ON rdc.legacyriskdecisioncode = ed.riskdecisioncodeid
