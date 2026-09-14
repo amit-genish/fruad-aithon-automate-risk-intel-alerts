@@ -1,11 +1,15 @@
 ---
 name: risk-alert-precision
 description: >
-  Calculate precision of Risk Intel Alerts at catching fraud payments.
-  Downloads the Risk Intel Alerts Google Sheet as XLSX, extracts Redash SQL
-  hyperlinks from the alert cells, fetches alert SQL queries from Redash,
-  joins with Snowflake is_fraud logic, and outputs precision per alert per
-  sliding time window (1d, 3d, 1w, 2w, 1m).
+  Download the Risk Intel Alerts Google Sheet, fetch Redash SQL for each alert,
+  and optionally calculate precision against Snowflake is_fraud data.
+
+  Supports two modes:
+  - skip (default in E2E pipeline): download sheet + fetch Redash SQL only →
+    outputs alert_queries.csv. No precision calculation.
+  - full: additionally joins with Snowflake is_fraud and outputs precision per
+    alert per sliding time window (1d, 3d, 1w, 2w, 1m) → outputs both
+    precision.csv and alert_queries.csv.
 
   USE THIS SKILL whenever asked to: calculate alert precision, run the risk
   intel alerts analysis, scrape the alerts sheet, check which alerts are catching
@@ -15,6 +19,21 @@ description: >
 
 # Risk Alert Precision Skill
 
+Supports two modes controlled by `PRECISION_MODE`:
+
+| Mode | Steps | Outputs |
+|------|-------|---------|
+| `skip` (default in E2E) | 1 → 2 → 3 | `alert_queries.csv` only |
+| `full` | 1 → 2 → 3 → 4 → 5 | `alert_queries.csv` + `precision.csv` |
+
+## Mode: skip
+
+Use when you only need the alert list and their SQL (e.g. E2E pipeline skipping
+precision stage). Stops after Step 3 — no Snowflake query, no precision.csv.
+
+## Mode: full
+
+Runs all steps including Snowflake is_fraud fetch and precision calculation.
 Produces `precision.csv` and `alert_queries.csv` as inputs for the incremental
 value skill and the E2E pipeline.
 
@@ -152,7 +171,7 @@ Output: `snowflake_fraud.csv` with columns `payment_id, is_fraud, is_bad`.
 
 ---
 
-## Step 5 — Calculate precision
+## Step 5 — Calculate precision *(full mode only)*
 
 ```bash
 python <skill_dir>/scripts/calculate_precision.py \
@@ -165,7 +184,12 @@ The script prints alerts above 10% precision threshold at the end — useful san
 
 ## Step 6 — Output
 
-Copy `precision.csv` and `alert_queries.csv` to the outputs folder and present them.
-Print the count of alerts above 10% precision in at least one window.
+**If `PRECISION_MODE=skip`:** copy `alert_queries.csv` to the outputs folder.
+No `precision.csv` is written — this is intentional. The incremental value skill
+will treat all alerts as qualifying when `precision.csv` is absent.
 
-These two files are the inputs for `risk-alert-incremental-value`.
+**If `PRECISION_MODE=full`:** copy both `precision.csv` and `alert_queries.csv`
+to the outputs folder. Print the count of alerts above 10% precision in at least
+one window.
+
+Both files (when present) are inputs for `risk-alert-incremental-value`.

@@ -27,28 +27,28 @@ All files for a single run are stored under:
 /tmp/risk_intel_runs/{YYYYMMDD}/
 ```
 
-## Default pipeline (skip-precision mode)
+## Pipeline (skip mode — default)
 
 ```
-[spreadsheet download + Redash SQL fetch]
+risk-alert-precision  [PRECISION_MODE=skip]
   ↓ alert_queries.csv  (no precision.csv)
 risk-alert-incremental-value  (all alerts qualify — no precision filter)
   ↓ incremental_value.csv
 risk-alert-to-rules
   ↓ rule_candidate_*.json, rule_conversion_report.md
-risk-alert-slack-notifier  (includes rule conversion summary)
+risk-alert-slack-notifier
 ```
 
-## Full pipeline (with precision)
+## Pipeline (full mode)
 
 ```
-risk-alert-precision
-  ↓ precision.csv, alert_queries.csv
+risk-alert-precision  [PRECISION_MODE=full]
+  ↓ precision.csv + alert_queries.csv
 risk-alert-incremental-value  (filters alerts with precision_pct >= 10)
   ↓ incremental_value.csv
 risk-alert-to-rules
   ↓ rule_candidate_*.json, rule_conversion_report.md
-risk-alert-slack-notifier  (includes rule conversion summary)
+risk-alert-slack-notifier
 ```
 
 ---
@@ -74,7 +74,7 @@ PRECISION_DIR="$SKILL_ROOT/risk-alert-precision"
 IV_DIR="$SKILL_ROOT/risk-alert-incremental-value"
 ```
 
-### 2. Python / uv (for precision step)
+### 2. Python / uv (for precision skill)
 
 ```bash
 # Check uv is installed
@@ -168,45 +168,18 @@ import os; os.makedirs(run_dir, exist_ok=True)
 print(f"Run directory: {run_dir}")
 ```
 
-### Step 2 — Populate alert_queries.csv
+### Step 2 — Run risk-alert-precision
 
-**If `PRECISION_MODE=full`:**
+Invoke the `risk-alert-precision` skill with `PRECISION_MODE` set to the value
+chosen above. Pass `run_dir` as the output directory.
 
-Invoke the `risk-alert-precision` skill. Pass `run_dir` as the output directory
-so all files land there.
+| Mode | Expected outputs |
+|------|-----------------|
+| `skip` | `alert_queries.csv` only |
+| `full` | `alert_queries.csv` + `precision.csv` |
 
-Expected outputs in `run_dir`:
-- `precision.csv`
-- `alert_queries.csv`
-
-If precision step fails or produces 0 rows: log error, post a failure notice to
+If the step fails or produces 0 alerts: log error, post a failure notice to
 `#risk_fraud_squad` (if `OUTPUT_MODE=slack`), and stop.
-
-**If `PRECISION_MODE=skip` (default):**
-
-Produce `alert_queries.csv` directly without running precision:
-
-1. **Download the spreadsheet** — use the same Google Drive file ID as the precision
-   skill. Download as XLSX to `{run_dir}/risk_intel_alerts.xlsx`.
-
-2. **Parse alert names from last ~30 days** — run the precision skill's `parse_sheet.py`
-   script to get `sheet_data.csv` and `alert_links.json`:
-   ```bash
-   uv run --project "$PRECISION_DIR" python "$PRECISION_DIR/scripts/parse_sheet.py" \
-     {run_dir}/risk_intel_alerts.xlsx {run_dir}
-   ```
-   Then extract unique alert names that appear in `sheet_data.csv` within the last 30 days
-   (filter by the date column to `>= CURRENT_DATE - 30`). These are the alerts to process.
-
-3. **Fetch SQL from Redash** — for each alert name found in `alert_links.json`, fetch
-   the Redash query SQL exactly as the precision skill does (Step 3 of risk-alert-precision).
-   Store results as `{run_dir}/alert_queries.csv` with columns: `alert_name, redash_url, sql_text`.
-
-4. **No `precision.csv` is written** — this is intentional. The incremental value skill
-   will detect its absence and skip the precision filter (see Step 3 note below).
-
-If the spreadsheet cannot be downloaded or 0 alert names are found: log error, post
-failure notice to `#risk_fraud_squad` (if `OUTPUT_MODE=slack`), and stop.
 
 ### Step 3 — Run risk-alert-incremental-value
 
