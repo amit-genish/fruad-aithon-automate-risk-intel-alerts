@@ -210,15 +210,15 @@ omitted from the JSON (their result files will be absent; Step 4 treats them as 
 # First time in a new shell: install deps
 cd <skill_dir> && npm install
 
-# Run (opens a browser SSO window on first use per session)
-SNOWFLAKE_USER=<your-email> \
+# Run (uses Snowflake REST API, no browser)
+SNOWFLAKE_PAT=<token> \
   npx tsx <skill_dir>/scripts/run_queries.ts \
     /tmp/risk_intel/modified_queries.json \
     /tmp/risk_intel/
 ```
 
-`SNOWFLAKE_ACCOUNT` is read from the environment (set in ~/.zshrc).
-Optional env vars: `SNOWFLAKE_AUTHENTICATOR` (default: `EXTERNALBROWSER`),
+`SNOWFLAKE_PAT` is the Programmatic Access Token (set in environment).
+Optional env vars: `SNOWFLAKE_HOST` (default: `mya82408.us-east-1.snowflakecomputing.com`),
 `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`.
 
 The script runs queries sequentially, wrapping each SQL in `query_template.sql`.

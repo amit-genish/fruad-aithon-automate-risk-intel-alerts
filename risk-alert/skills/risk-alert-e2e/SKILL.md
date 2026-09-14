@@ -101,19 +101,9 @@ node --version || { echo "ERROR: node not found. Install via nvm or brew."; exit
 ### 4. Snowflake environment variable
 
 ```bash
-# SNOWFLAKE_ACCOUNT must be set (typically in ~/.zshrc)
-[[ -n "$SNOWFLAKE_ACCOUNT" ]] || { echo "ERROR: SNOWFLAKE_ACCOUNT not set."; exit 1; }
+# SNOWFLAKE_PAT must be set
+[[ -n "$SNOWFLAKE_PAT" ]] || { echo "ERROR: SNOWFLAKE_PAT not set."; exit 1; }
 echo "Snowflake env: OK"
-```
-
-### 5. SNOWFLAKE_USER
-
-```bash
-# Prompt if not set
-if [[ -z "$SNOWFLAKE_USER" ]]; then
-  echo "SNOWFLAKE_USER not set. Enter your Melio email:"
-  read SNOWFLAKE_USER
-fi
 ```
 
 If any prerequisite check fails: stop and report clearly which tool is missing
