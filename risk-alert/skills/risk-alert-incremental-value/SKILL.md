@@ -184,15 +184,15 @@ If a query fails with `Unknown user-defined function <name>` (e.g., `PROD.ANALYT
 2. **Display-only UDF:** remove the column from the `SELECT`, re-run. Always note in `rule_conversion_report.md`: `"UDF {name} stripped from SELECT — no access under SNOWFLAKE_MCP role. Column was display-only and not needed for IV calculation."`
 3. **Logic UDF (in WHERE or JOIN):** skip this alert for IV. Write a result JSON with `error: "UDF {name} inaccessible — required for alert logic"` and document it clearly in the report.
 
-**7. Simplify queries — drop display-only joins first; add date guards only on timeout.**
+**7. Timeout recovery — add date guards to unfiltered CTEs.**
 
-Before running, remove joins and CTEs whose data is used only in the `SELECT` (display columns) and not in any `WHERE` or `JOIN ON` condition — they do not affect which payments the alert captures and only add query cost. Record every removal in `assumptions_{alert}.txt`: `"Dropped {CTE/join} — display-only, no impact on alert logic."` Note simplifications in `rule_conversion_report.md`.
+Run the query as modified (do NOT remove any joins or CTEs — every part of the original query is needed for accurate results). If a query times out, identify CTEs that scan a large table with no `WHERE` clause at all (e.g., `SELECT PAYMENTID, min(id) FROM RISKENGINEDECISIONS GROUP BY 1`). These unbounded scans are the likely cause.
 
-Run the query. If it times out, add a date guard to the offending CTE sized to the modified query's time window plus a proportional buffer:
-- `last_2w` (14-day window) → guard of ~30 days: `WHERE createdat > DATEADD('day', -30, CURRENT_DATE())`
-- `mature_90_30` (90-day window) → guard of ~120 days: `WHERE createdat > DATEADD('day', -120, CURRENT_DATE())`
+For each such CTE, add a `createdat` filter sized to the modified query's time window plus a proportional buffer:
+- `last_2w` (14-day window) → `WHERE createdat > DATEADD('day', -30, CURRENT_DATE())`
+- `mature_90_30` (90-day window) → `WHERE createdat > DATEADD('day', -120, CURRENT_DATE())`
 
-Note the guard in `assumptions_{alert}.txt`: `"Added createdat guard to {CTE} after timeout — sized to query window + buffer."`
+Note in `assumptions_{alert}.txt`: `"Added createdat guard to {CTE} after timeout — sized to query window + buffer. No other changes made."`
 
 ### Alerts with known issues — mark as error, skip
 

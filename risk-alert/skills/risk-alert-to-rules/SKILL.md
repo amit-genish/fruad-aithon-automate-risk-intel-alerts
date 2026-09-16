@@ -48,13 +48,13 @@ Use the **engine DB format** (consumed directly by json-rules-engine — see `re
   "conditions": {
     "all": [
       {
-        "fact": "payment.melio_db__raw__amount", // FeatureFetcherItemDatum.PaymentMelioDbRawAmount
+        "fact": "payment.melio_db__raw__amount", // OrchestrationItemDatum.PaymentMelioDbRawAmount
         "path": "$.value",
         "operator": "greaterThan",
         "value": 1500
       },
       {
-        "fact": "ato-v3-score", // AtoV3ItemDatum.AtoV3Score
+        "fact": "ato-v3-score", // OrchestrationItemDatum.AtoV3Score
         "path": "$.value",
         "operator": "greaterThan",
         "value": 20
@@ -84,8 +84,8 @@ Use the **engine DB format** (consumed directly by json-rules-engine — see `re
 ```
 
 Key rules:
-- `path` is always `"$.value"` for every fact type — both FeatureFetcherItemDatum (Chalk) and OrchestrationItemDatum use `{ value: X }` at runtime
-- Every `fact` string must have an inline comment with its full enum key (e.g., `// AtoV3ItemDatum.AtoV3Score` or `// FeatureFetcherItemDatum.PaymentMelioDbRawAmount`)
+- `path` is always `"$.value"` for every fact type — all sources (Chalk, RALF, OrchestrationItemDatum) use `{ value: X }` at runtime
+- Every `fact` string must have an inline comment using the **MRCA enum** `OrchestrationItemDatum.<Key>` (e.g., `// OrchestrationItemDatum.AtoV3Score`). See `references/sql-to-feature-mapping.md` for the three-source lookup guide and MRCA rule.
 - `decision` defaults to `"pending"` — conservative, triggers manual review
 - Leave `mos`, `subcategory`, `riskDecisionCodeId`, `labelIds`, `limitations` for the analyst
 - `_conversion_notes` is non-engine metadata and won't affect rule execution
