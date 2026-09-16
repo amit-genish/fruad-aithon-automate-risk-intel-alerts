@@ -29,14 +29,32 @@ For each qualifying alert, work through the SQL WHERE clause systematically:
 3. **Preserve logical structure**: SQL `AND` → `all` group; SQL `OR` → `any` group; SQL `NOT` → `not: true` on the condition
 4. **Attempt to find every condition before declaring it unmapped** — see rule below
 
-**Rule: grep before giving up.** A condition is only "unmapped" after you have actively searched the feature file and found nothing. "Not in the mapping table" is not the same as "not in Chalk." For any SQL field not in the mapping table, run at minimum two grep attempts using different keywords derived from the column name (e.g., for `dwa.aba` try both `aba` and `domestic`):
+**Rule: search both fact sources before giving up.** A condition is only "unmapped" after you have actively searched **both** sources below and found nothing. "Not in the mapping table" is not the same as "unmapped."
+
+**Source 1 — Chalk feature store** (`feature-fetcher-item-datum.ts`):
 
 ```bash
-grep -i "<keyword1>" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
-grep -i "<keyword2>" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
+CHALK="<chalk-feature-store-root>/packages/chalk-typed/src/feature-fetcher-item-datum.ts"
+grep -i "<keyword1>" "$CHALK"
+grep -i "<keyword2>" "$CHALK"
+# Always grep both payment.* AND payment_action.* — payment_action features ARE valid rule facts
+grep "payment_action\." "$CHALK" | grep -i "<concept>"
 ```
 
-Only move a condition to `unmapped_conditions` after these searches return nothing relevant. If you find a plausible match, verify it makes semantic sense before using it.
+**Source 2 — OrchestrationItemDatum enum** (`risk-orchestration`):
+
+Use when the SQL reads from `PRODUCTION_RISK_ORCHESTRATION_ITEM_EXECUTION_RESULTS` or references an executor key (e.g., `atoV3Executor`):
+
+```bash
+ORCH="<risk-orchestration-root>/src/shared/types/orchestration-item-datum/orchestration-item-datum-types.ts"
+grep -i "<keyword>" "$ORCH"
+```
+
+The enum value (right side of `=`) is the `fact` string directly — no `path: "$.value"` needed for OrchestrationItemDatum facts (confirm with the strategy team if unsure).
+
+See `references/sql-to-feature-mapping.md` for the full two-source lookup guide and confirmed active OrchestrationItemDatum facts.
+
+Only move a condition to `unmapped_conditions` after both searches return nothing relevant.
 
 ### Step 4: Generate rule JSON candidates
 
