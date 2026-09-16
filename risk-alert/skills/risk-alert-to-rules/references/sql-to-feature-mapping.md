@@ -135,14 +135,13 @@ Clone/pull before grepping — do not rely on a stale local copy:
 ```bash
 CHALK="<chalk-feature-store-root>/packages/chalk-typed/src/feature-fetcher-item-datum.ts"
 
-# Exact name lookup — always try at least two keyword variants
+# Always try at least two keyword variants derived from the SQL column name
+# e.g. for dwa.aba try "aba" and "domestic_wire"
 grep -i "<keyword1>" "$CHALK"
 grep -i "<keyword2>" "$CHALK"
-
-# Browse by namespace
-grep "payment\." "$CHALK" | grep -i "<concept>"
-grep "payment_action\." "$CHALK" | grep -i "<concept>"  # ← do NOT skip payment_action — it is valid in the rule engine
 ```
+
+Features can be on any entity type (`payment`, `organization`, `delivery_method`, `vendor`, `funding_source`, `payment_action`, etc.) — grep by keyword across the whole file, not by namespace. The fact must semantically match the SQL condition, whatever entity it lives on.
 
 The enum value (right side of `=`) is the exact string to use as the `fact`.
 
@@ -150,10 +149,14 @@ The enum value (right side of `=`) is the exact string to use as the `fact`.
 
 Orchestration item results (scores produced by executors like ATO v3, AML, etc.) are also available as rule facts. These are **not** Chalk features — they come from a separate pipeline.
 
+Clone/pull `risk-orchestration` before grepping — the enum evolves as new executors are added:
+
 ```bash
 ORCH="<risk-orchestration-root>/src/shared/types/orchestration-item-datum/orchestration-item-datum-types.ts"
 
-grep -i "<keyword>" "$ORCH"
+# Try at least two keyword variants — same rule as for Chalk
+grep -i "<keyword1>" "$ORCH"
+grep -i "<keyword2>" "$ORCH"
 ```
 
 The enum value (right side of `=`) is the exact string to use as the `fact`. Example:
@@ -164,6 +167,8 @@ export enum AtoV3ItemDatum {
 ```
 
 **When to look here:** any SQL condition that reads from `PRODUCTION_RISK_ORCHESTRATION_ITEM_EXECUTION_RESULTS` or references an executor key (e.g., `atoV3Executor`, `amlExecutor`).
+
+**Important:** `OrchestrationItemDatum` is a union type that **includes** `FeatureFetcherItemDatum` (i.e., all Chalk feature names are also valid OrchestrationItemDatum keys). Grepping the orchestration file will therefore surface Chalk features too. The distinction matters for the rule engine: Chalk features use `path: "$.value"` because the runtime wraps them as `{ value: X }`; pure orchestration item datums (executor scores) may not — confirm with the strategy team if you find a match only in the orch file and not in the Chalk file.
 
 **Confirmed active OrchestrationItemDatum facts in live strategies** (as of 2026-09):
 | Datum key | Enum | Used in strategies |
