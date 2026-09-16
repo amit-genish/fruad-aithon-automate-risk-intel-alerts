@@ -162,7 +162,9 @@ Features can be on any entity type — grep by keyword, not by namespace.
 
 **`path: "$.value"` is always present** — no exceptions across all three sources.
 
-**Confirmed live strategy facts** (as of 2026-09, verified via `fivetran_cdc.decision_engine_decision.strategyconfigurations`):
-| Fact string | Source | Enum key |
-|---|---|---|
-| `atoV2ModelScore` | RALF | `OrchestrationItemDatum.RiskAnalyzerFeature_atoV2ModelScore` |
+**Confirmed live strategy facts** (as of 2026-09, verified via `fivetran_cdc.decision_engine_decision.strategyconfigurations` — `isarchived=0`, `mode='live'`):
+| Fact string | Source | Enum key | Strategies |
+|---|---|---|---|
+| `atoV2ModelScore` | RALF | `OrchestrationItemDatum.RiskAnalyzerFeature_atoV2ModelScore` | payment-full, ap-fraud |
+
+Both confirmed to use `path: "$.value"` in the live rule JSON.
