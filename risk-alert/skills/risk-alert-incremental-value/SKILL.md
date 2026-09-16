@@ -184,25 +184,20 @@ If a query fails with `Unknown user-defined function <name>` (e.g., `PROD.ANALYT
 2. **Display-only UDF:** remove the column from the `SELECT`, re-run. Always note in `rule_conversion_report.md`: `"UDF {name} stripped from SELECT — no access under SNOWFLAKE_MCP role. Column was display-only and not needed for IV calculation."`
 3. **Logic UDF (in WHERE or JOIN):** skip this alert for IV. Write a result JSON with `error: "UDF {name} inaccessible — required for alert logic"` and document it clearly in the report.
 
-**7. Unbounded CTEs on large tables — add a date guard.**
+**7. Simplify queries — drop redundant joins and replace expensive CTEs.**
 
-CTEs that scan `RISKENGINEDECISIONS` or `ORGANIZATIONDECISIONS` without a `WHERE` clause (e.g., `SELECT PAYMENTID, min(id) FROM FVTRN_MELIO.RISKENGINEDECISIONS GROUP BY 1`) will do a full-table scan and are likely to time out over a large window. Before running:
+Before modifying dates or adding guards, audit the SQL for parts that can be removed or replaced without changing which payments the alert captures. This is especially important for CTEs that do full-table scans (`RISKENGINEDECISIONS`, `ORGANIZATIONDECISIONS`).
 
-- Inspect every CTE for references to these tables without a `createdat` filter.
-- Add a conservative date guard consistent with the alert's scope, e.g.:
-  ```sql
-  -- Before:
-  SELECT PAYMENTID, min(id) AS last_action_id
-  FROM FIVETRAN_CDC.FVTRN_MELIO.RISKENGINEDECISIONS
-  GROUP BY 1
+Ask for each CTE / JOIN:
+- Is the joined data actually used in a `WHERE` condition, or only in the `SELECT` for display? Display-only joins can be removed entirely.
+- Can the `WHERE` condition be satisfied from a different table that is already joined, or from a direct column on `PAYMENTS`? If yes, replace it and drop the expensive CTE.
 
-  -- After:
-  SELECT PAYMENTID, min(id) AS last_action_id
-  FROM FIVETRAN_CDC.FVTRN_MELIO.RISKENGINEDECISIONS
-  WHERE createdat > DATEADD('day', -100, CURRENT_DATE())
-  GROUP BY 1
-  ```
-- Note the addition in `assumptions_{alert}.txt`: `"Added createdat > -100d guard to RISKENGINEDECISIONS CTE to prevent full-table scan."`
+Common cases:
+- A CTE that fetches the "last org decision" to display an ODE label in Redash output is not needed if `RISK_PAYMENTS.org_ode_decision` (already joined) provides the same filter.
+- `RISKENGINEDECISIONS.modelresult:features.payorCreateOriginPartner` can often be replaced with `p.partnername` directly.
+- `RISKENGINEDECISIONS.modelresult:features.payeeEaEmailRiskScore` can often be replaced by joining `prod.ANALYTICS.RISK_EMAILAGE_VENDOR` (pre-computed, indexed by payment ID).
+
+Always prefer dropping a CTE over adding a date guard. Record every removal in `assumptions_{alert}.txt`: `"Dropped {CTE_name} — data available from {alternative source}; no impact on alert logic."` Note simplifications in `rule_conversion_report.md`.
 
 ### Alerts with known issues — mark as error, skip
 
