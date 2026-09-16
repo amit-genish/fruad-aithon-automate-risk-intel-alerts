@@ -74,9 +74,22 @@ Pass `--scope-days 90` for the post-MVP 3-month window.
 
 ## Step 1 — Download the Google Sheet as XLSX
 
-Fetch sheet ID `1BVjaJlIGpSWhH1IJBOkwAr7xWqMB8IdbtkkWFyRkoQU` as an XLSX and save it locally — use whichever mechanism your environment provides (Kite: `gws-drive` skill; Claude Code: Google Drive MCP `download_file_content`; any env: `curl` with a service-account token). The sheet must be shared with `melio-kite@xero.com` (Viewer).
+Use the Google Drive connector (available in both Claude Code and Kite via the `gws-drive` skill):
+```
+Tool: download_file_content
+fileId: "1BVjaJlIGpSWhH1IJBOkwAr7xWqMB8IdbtkkWFyRkoQU"
+exportMimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+```
 
-`parse_sheet.py` only needs the local file path — it has no Google Drive dependency.
+The sheet must be shared with `melio-kite@xero.com` (Viewer) for automation to work.
+
+The result is a JSON `{content: <base64>, ...}`. Decode and save:
+```python
+import base64
+xlsx_bytes = base64.b64decode(result["content"])
+with open("/tmp/risk_intel/alerts.xlsx", "wb") as f:
+    f.write(xlsx_bytes)
+```
 
 ## Step 2 — Parse XLSX → sheet data + hyperlinks
 

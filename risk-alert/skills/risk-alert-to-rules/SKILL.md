@@ -37,21 +37,27 @@ Only move a condition to `unmapped_conditions` after both searches return nothin
 
 ### Step 4: Generate rule JSON candidates
 
-For each qualifying alert, output a JSON file named `rule_candidate_{snake_case_alert_name}.json` to the run directory.
+For each qualifying alert, output a **JSONC file** named `rule_candidate_{snake_case_alert_name}.jsonc` to the run directory. JSONC (JSON with comments) is used so each `fact` value can be annotated with its full enum key — this makes the file ready to paste into `strategy-builder-api` TypeScript rules.
 
 Use the **engine DB format** (consumed directly by json-rules-engine — see `references/rule-format.md`):
 
-```json
+```jsonc
 {
   "name": "<Alert Name> — candidate",
   "priority": 10,
   "conditions": {
     "all": [
       {
-        "fact": "<chalk.feature.name>",
+        "fact": "payment.melio_db__raw__amount", // FeatureFetcherItemDatum.PaymentMelioDbRawAmount
         "path": "$.value",
-        "operator": "<operator>",
-        "value": <value>
+        "operator": "greaterThan",
+        "value": 1500
+      },
+      {
+        "fact": "ato-v3-score", // AtoV3ItemDatum.AtoV3Score
+        "path": "$.value",
+        "operator": "greaterThan",
+        "value": 20
       }
     ]
   },
@@ -68,17 +74,18 @@ Use the **engine DB format** (consumed directly by json-rules-engine — see `re
     "source_alert": "<alert_name>",
     "redash_url": "<url from alert_queries.csv>",
     "alert_stats": {
-      "bad_rate_pct": <from incremental_value.csv>,
-      "monthly_fraud_tpv": <from incremental_value.csv>
+      "bad_rate_pct": "<from incremental_value.csv>",
+      "monthly_fraud_tpv": "<from incremental_value.csv>"
     },
-    "unmapped_conditions": ["<SQL conditions with no Chalk equivalent>"],
+    "unmapped_conditions": ["<SQL conditions with no fact equivalent>"],
     "analyst_notes": ["<anything requiring human review>"]
   }
 }
 ```
 
 Key rules:
-- `path` is always `"$.value"` — Chalk wraps feature values as `{ value: X }`
+- `path` is always `"$.value"` for every fact type — both FeatureFetcherItemDatum (Chalk) and OrchestrationItemDatum use `{ value: X }` at runtime
+- Every `fact` string must have an inline comment with its full enum key (e.g., `// AtoV3ItemDatum.AtoV3Score` or `// FeatureFetcherItemDatum.PaymentMelioDbRawAmount`)
 - `decision` defaults to `"pending"` — conservative, triggers manual review
 - Leave `mos`, `subcategory`, `riskDecisionCodeId`, `labelIds`, `limitations` for the analyst
 - `_conversion_notes` is non-engine metadata and won't affect rule execution
