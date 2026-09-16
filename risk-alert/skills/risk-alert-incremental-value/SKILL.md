@@ -167,6 +167,43 @@ SELECT COUNT(*) AS manual_review_load, ... FROM payment_with_fraud
 Use `"full_sql"` as the key in modified_queries.json (instead of `"modified_sql"`) — the
 runner uses `full_sql` directly, bypassing the template wrapper.
 
+**5. Org-aggregated alert SQLs must be de-aggregated.**
+
+Some alert SQLs group results by `(org_id, date)` — e.g., `GROUP BY tp.ORGANIZATIONID, tp.CREATEDAT::date` — and collapse multiple payments into one row per org using `MAX(payment_id)`, `COUNT(DISTINCT ...)`, `SUM(...)`. The template requires **one row per payment**.
+
+Before modifying dates, check: does the SQL have a `GROUP BY` that collapses payments?
+- If **yes**: remove the `GROUP BY`, `MAX(payment_id)`, `COUNT(DISTINCT)`, and `SUM()` aggregation columns. Keep per-payment columns only. The inner CTEs (scores, preceding amounts, etc.) already produce per-payment rows — the aggregation exists for Redash display only.
+- Record this decision in `assumptions_{alert}.txt`: `"Org-aggregated: yes — GROUP BY and MAX(payment_id) removed; template requires per-payment rows."`
+- Note in `rule_conversion_report.md` that the query was de-aggregated for IV calculation.
+
+**6. UDF access failures — strip or skip.**
+
+If a query fails with `Unknown user-defined function <name>` (e.g., `PROD.ANALYTICS.DECRYPT_VALUE_WITH_PARTIAL_ERROR`):
+
+1. Check whether the UDF is in the `SELECT` list only (display column) or in a `WHERE` / `JOIN ON` clause (required for logic).
+2. **Display-only UDF:** remove the column from the `SELECT`, re-run. Always note in `rule_conversion_report.md`: `"UDF {name} stripped from SELECT — no access under SNOWFLAKE_MCP role. Column was display-only and not needed for IV calculation."`
+3. **Logic UDF (in WHERE or JOIN):** skip this alert for IV. Write a result JSON with `error: "UDF {name} inaccessible — required for alert logic"` and document it clearly in the report.
+
+**7. Unbounded CTEs on large tables — add a date guard.**
+
+CTEs that scan `RISKENGINEDECISIONS` or `ORGANIZATIONDECISIONS` without a `WHERE` clause (e.g., `SELECT PAYMENTID, min(id) FROM FVTRN_MELIO.RISKENGINEDECISIONS GROUP BY 1`) will do a full-table scan and are likely to time out over a large window. Before running:
+
+- Inspect every CTE for references to these tables without a `createdat` filter.
+- Add a conservative date guard consistent with the alert's scope, e.g.:
+  ```sql
+  -- Before:
+  SELECT PAYMENTID, min(id) AS last_action_id
+  FROM FIVETRAN_CDC.FVTRN_MELIO.RISKENGINEDECISIONS
+  GROUP BY 1
+
+  -- After:
+  SELECT PAYMENTID, min(id) AS last_action_id
+  FROM FIVETRAN_CDC.FVTRN_MELIO.RISKENGINEDECISIONS
+  WHERE createdat > DATEADD('day', -100, CURRENT_DATE())
+  GROUP BY 1
+  ```
+- Note the addition in `assumptions_{alert}.txt`: `"Added createdat > -100d guard to RISKENGINEDECISIONS CTE to prevent full-table scan."`
+
 ### Alerts with known issues — mark as error, skip
 
 - **Fraud Ring**: fails with `invalid identifier 'PROXY'` — Redash alias not in raw tables.
