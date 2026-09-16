@@ -29,32 +29,35 @@ For each qualifying alert, work through the SQL WHERE clause systematically:
 3. **Preserve logical structure**: SQL `AND` → `all` group; SQL `OR` → `any` group; SQL `NOT` → `not: true` on the condition
 4. **Attempt to find every condition before declaring it unmapped** — see rule below
 
-**Rule: grep before giving up.** A condition is only "unmapped" after you have actively searched the feature file and found nothing. "Not in the mapping table" is not the same as "not in Chalk." For any SQL field not in the mapping table, run at minimum two grep attempts using different keywords derived from the column name (e.g., for `dwa.aba` try both `aba` and `domestic`):
+**Rule: grep both fact sources before giving up.** A condition is only "unmapped" after you have searched both the Chalk feature store (`feature-fetcher-item-datum.ts`) and the OrchestrationItemDatum enum (`orchestration-item-datum-types.ts`) with at least two keyword variants, and found nothing relevant. "Not in the mapping table" ≠ "unmapped."
 
-```bash
-grep -i "<keyword1>" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
-grep -i "<keyword2>" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
-```
+See `references/sql-to-feature-mapping.md` for clone/pull instructions, grep patterns, the superset relationship between the two files, and confirmed active facts.
 
-Only move a condition to `unmapped_conditions` after these searches return nothing relevant. If you find a plausible match, verify it makes semantic sense before using it.
+Only move a condition to `unmapped_conditions` after both searches return nothing relevant.
 
 ### Step 4: Generate rule JSON candidates
 
-For each qualifying alert, output a JSON file named `rule_candidate_{snake_case_alert_name}.json` to the run directory.
+For each qualifying alert, output a **JSONC file** named `rule_candidate_{snake_case_alert_name}.jsonc` to the run directory. JSONC (JSON with comments) is used so each `fact` value can be annotated with its full enum key — this makes the file ready to paste into `strategy-builder-api` TypeScript rules.
 
 Use the **engine DB format** (consumed directly by json-rules-engine — see `references/rule-format.md`):
 
-```json
+```jsonc
 {
   "name": "<Alert Name> — candidate",
   "priority": 10,
   "conditions": {
     "all": [
       {
-        "fact": "<chalk.feature.name>",
+        "fact": "payment.melio_db__raw__amount", // OrchestrationItemDatum.PaymentMelioDbRawAmount
         "path": "$.value",
-        "operator": "<operator>",
-        "value": <value>
+        "operator": "greaterThan",
+        "value": 1500
+      },
+      {
+        "fact": "ato-v3-score", // OrchestrationItemDatum.AtoV3Score
+        "path": "$.value",
+        "operator": "greaterThan",
+        "value": 20
       }
     ]
   },
@@ -71,17 +74,18 @@ Use the **engine DB format** (consumed directly by json-rules-engine — see `re
     "source_alert": "<alert_name>",
     "redash_url": "<url from alert_queries.csv>",
     "alert_stats": {
-      "bad_rate_pct": <from incremental_value.csv>,
-      "monthly_fraud_tpv": <from incremental_value.csv>
+      "bad_rate_pct": "<from incremental_value.csv>",
+      "monthly_fraud_tpv": "<from incremental_value.csv>"
     },
-    "unmapped_conditions": ["<SQL conditions with no Chalk equivalent>"],
+    "unmapped_conditions": ["<SQL conditions with no fact equivalent>"],
     "analyst_notes": ["<anything requiring human review>"]
   }
 }
 ```
 
 Key rules:
-- `path` is always `"$.value"` — Chalk wraps feature values as `{ value: X }`
+- `path` is always `"$.value"` for every fact type — all sources (Chalk, RALF, OrchestrationItemDatum) use `{ value: X }` at runtime
+- Every `fact` string must have an inline comment using the **MRCA enum** `OrchestrationItemDatum.<Key>` (e.g., `// OrchestrationItemDatum.AtoV3Score`). See `references/sql-to-feature-mapping.md` for the three-source lookup guide and MRCA rule.
 - `decision` defaults to `"pending"` — conservative, triggers manual review
 - Leave `mos`, `subcategory`, `riskDecisionCodeId`, `labelIds`, `limitations` for the analyst
 - `_conversion_notes` is non-engine metadata and won't affect rule execution
