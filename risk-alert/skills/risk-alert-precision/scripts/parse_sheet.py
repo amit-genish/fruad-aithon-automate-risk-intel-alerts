@@ -36,6 +36,9 @@ Usage:
 
     # Post-MVP: extend scope to 90 days
     python parse_sheet.py alerts.xlsx --out-dir /tmp/risk_intel/ --scope-days 90
+
+    # Target a specific sheet (default: Sheet1)
+    python parse_sheet.py alerts.xlsx --sheet-name Sheet1
 """
 
 import argparse
@@ -72,14 +75,16 @@ def _cell_str(cell) -> str:
 
 
 def parse(xlsx_path: str, out_dir: str, scope_days: int = 30,
-          print_columns: bool = False):
+          print_columns: bool = False, sheet_name: str = 'Sheet1'):
     try:
         import openpyxl
     except ImportError:
         sys.exit("ERROR: openpyxl not installed.\nRun: pip install openpyxl --break-system-packages")
 
     wb = openpyxl.load_workbook(xlsx_path)
-    ws = wb.active
+    if sheet_name not in wb.sheetnames:
+        sys.exit(f"ERROR: Sheet '{sheet_name}' not found. Available: {wb.sheetnames}")
+    ws = wb[sheet_name]
 
     # Read header row
     header_row = next(ws.iter_rows(min_row=1, max_row=1))
@@ -249,10 +254,13 @@ def main():
                         help='Only include rows where Added At >= now - N days (default: 30; post-MVP: 90)')
     parser.add_argument('--print-columns', action='store_true',
                         help='Print detected columns and exit (use before first real run)')
+    parser.add_argument('--sheet-name', default='Sheet1',
+                        help='Sheet tab to parse (default: Sheet1)')
     args = parser.parse_args()
     parse(args.xlsx_path, args.out_dir,
           scope_days=args.scope_days,
-          print_columns=args.print_columns)
+          print_columns=args.print_columns,
+          sheet_name=args.sheet_name)
 
 
 if __name__ == '__main__':

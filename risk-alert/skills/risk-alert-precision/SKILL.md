@@ -74,12 +74,14 @@ Pass `--scope-days 90` for the post-MVP 3-month window.
 
 ## Step 1 — Download the Google Sheet as XLSX
 
-Use the Google Drive connector:
+Use the Google Drive connector (available in both Claude Code and Kite via the `gws-drive` skill):
 ```
 Tool: download_file_content
 fileId: "1BVjaJlIGpSWhH1IJBOkwAr7xWqMB8IdbtkkWFyRkoQU"
 exportMimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ```
+
+The sheet must be shared with `melio-kite@xero.com` (Viewer) for automation to work.
 
 The result is a JSON `{content: <base64>, ...}`. Decode and save:
 ```python
@@ -98,13 +100,13 @@ uv sync --project <skill_dir> -q
 # First run: verify column detection
 uv run --project <skill_dir> python <skill_dir>/scripts/parse_sheet.py /tmp/risk_intel/alerts.xlsx --print-columns
 
-# Full parse — last 30 days (MVP scope)
+# Full parse — last 30 days (MVP scope), Sheet1 only
 uv run --project <skill_dir> python <skill_dir>/scripts/parse_sheet.py /tmp/risk_intel/alerts.xlsx \
-    --out-dir /tmp/risk_intel/ --scope-days 30
+    --out-dir /tmp/risk_intel/ --scope-days 30 --sheet-name Sheet1
 
 # Post-MVP: extend to 90 days
 # uv run --project <skill_dir> python <skill_dir>/scripts/parse_sheet.py /tmp/risk_intel/alerts.xlsx \
-#     --out-dir /tmp/risk_intel/ --scope-days 90
+#     --out-dir /tmp/risk_intel/ --scope-days 90 --sheet-name Sheet1
 ```
 
 Outputs: `sheet_data.csv` and `alert_links.json`.
@@ -148,21 +150,21 @@ be logged with `sql_text = Fail to fetch` and excluded from downstream processin
 ## Step 4 — Snowflake is_fraud query
 
 `PROD.ANALYTICS.RISK_PAYMENTS` has pre-computed `IS_FRAUD` and `IS_BAD` columns —
-use them directly. Run via the TypeScript script (no MCP, no batching):
+use them directly. Run via the TypeScript script (uses Snowflake REST API, no browser):
 
 ```bash
 # First time in a new shell: install deps
 cd <skill_dir> && npm install
 
-# Run (opens a browser SSO window on first use per session)
-SNOWFLAKE_USER=<your-email> \
+# Run
+SNOWFLAKE_PAT=<token> \
   npx tsx <skill_dir>/scripts/fetch_fraud.ts \
     /tmp/risk_intel/sheet_data.csv \
     /tmp/risk_intel/snowflake_fraud.csv
 ```
 
-`SNOWFLAKE_ACCOUNT` is read from the environment (set in ~/.zshrc).
-Optional env vars: `SNOWFLAKE_AUTHENTICATOR` (default: `EXTERNALBROWSER`),
+`SNOWFLAKE_PAT` is the Programmatic Access Token (set in environment).
+Optional env vars: `SNOWFLAKE_HOST` (default: `mya82408.us-east-1.snowflakecomputing.com`),
 `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_ROLE`.
 
 The script issues a single VALUES-CTE query for all IDs — no batching needed.
