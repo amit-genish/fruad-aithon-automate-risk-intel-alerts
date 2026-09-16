@@ -124,55 +124,45 @@ If the SQL has an absolute date like `dm.createdat > '2025-12-01'`, this cannot 
 
 ---
 
-## Two sources for rule facts
+## Three sources for rule facts
 
-Strategy rules can use facts from **two independent sources**. Always check both before declaring a signal unmapped:
+`OrchestrationItemDatum` (defined in `risk-orchestration`) is a **superset union** of all fact sources. Always check all three before declaring a signal unmapped:
 
-### 1. Chalk feature store (`feature-fetcher-item-datum.ts`)
+| Source | Repo | File | When to search |
+|---|---|---|---|
+| 1. FeatureFetcher (Chalk) | `chalk-feature-store` | `packages/chalk-typed/src/feature-fetcher-item-datum.ts` | Payment/entity features computed by Chalk |
+| 2. RALF | `payment-approval` | `packages/risk-analyzer-features/src/features-datum.ts` | Risk-Analyzer model scores (e.g., `atoV2ModelScore`) |
+| 3. OrchestrationItemDatum | `risk-orchestration` | `src/shared/types/orchestration-item-datum/orchestration-item-datum-types.ts` | Executor-specific scores (e.g., `ato-v3-score`); also a superset of 1 and 2 |
 
-Clone/pull before grepping — do not rely on a stale local copy:
-
-```bash
-CHALK="<chalk-feature-store-root>/packages/chalk-typed/src/feature-fetcher-item-datum.ts"
-
-# Always try at least two keyword variants derived from the SQL column name
-# e.g. for dwa.aba try "aba" and "domestic_wire"
-grep -i "<keyword1>" "$CHALK"
-grep -i "<keyword2>" "$CHALK"
-```
-
-Features can be on any entity type (`payment`, `organization`, `delivery_method`, `vendor`, `funding_source`, `payment_action`, etc.) — grep by keyword across the whole file, not by namespace. The fact must semantically match the SQL condition, whatever entity it lives on.
-
-The enum value (right side of `=`) is the exact string to use as the `fact`.
-
-### 2. OrchestrationItemDatum enum (`risk-orchestration`)
-
-Orchestration item results (scores produced by executors like ATO v3, AML, etc.) are also available as rule facts. These are **not** Chalk features — they come from a separate pipeline.
-
-Clone/pull `risk-orchestration` before grepping — the enum evolves as new executors are added:
+Clone/pull each repo before grepping — these enums evolve frequently. Always try at least two keyword variants:
 
 ```bash
+FF="<chalk-feature-store-root>/packages/chalk-typed/src/feature-fetcher-item-datum.ts"
+RALF="<payment-approval-root>/packages/risk-analyzer-features/src/features-datum.ts"
 ORCH="<risk-orchestration-root>/src/shared/types/orchestration-item-datum/orchestration-item-datum-types.ts"
 
-# Try at least two keyword variants — same rule as for Chalk
-grep -i "<keyword1>" "$ORCH"
-grep -i "<keyword2>" "$ORCH"
+grep -i "<keyword1>" "$FF" "$RALF" "$ORCH"
+grep -i "<keyword2>" "$FF" "$RALF" "$ORCH"
 ```
 
-The enum value (right side of `=`) is the exact string to use as the `fact`. Example:
-```typescript
-export enum AtoV3ItemDatum {
-  AtoV3Score = 'ato-v3-score',   // ← fact: "ato-v3-score"
-}
+Features can be on any entity type — grep by keyword, not by namespace.
+
+**`path: "$.value"` applies to ALL facts from all three sources.** Every datum result is wrapped as `{ value: X, error?: ... }` at runtime (`OrchestrationItemDatumResult`). Confirmed: `blockExtremeATOV2ModelScore.ts` in `strategy-builder-api` uses `path: '$.value'` on a RALF (`RiskAnalyzerFeaturesItemDatum`) fact.
+
+**MRCA enum rule:** In the `.jsonc` comment, always use the **Most Common Ancestor** enum — `OrchestrationItemDatum` — since it is the superset of all three sources. Never write the sub-enum:
+```jsonc
+// ✅ correct
+"fact": "ato-v3-score" // OrchestrationItemDatum.AtoV3Score
+"fact": "atoV2ModelScore" // OrchestrationItemDatum.RiskAnalyzerFeature_atoV2ModelScore
+"fact": "payment.melio_db__raw__amount" // OrchestrationItemDatum.PaymentMelioDbRawAmount
+
+// ❌ wrong — sub-enum is too specific
+"fact": "ato-v3-score" // AtoV3ItemDatum.AtoV3Score
 ```
 
-**When to look here:** any SQL condition that reads from `PRODUCTION_RISK_ORCHESTRATION_ITEM_EXECUTION_RESULTS` or references an executor key (e.g., `atoV3Executor`, `amlExecutor`).
+**`path: "$.value"` is always present** — no exceptions across all three sources.
 
-**Important:** `OrchestrationItemDatum` is a union type that **includes** `FeatureFetcherItemDatum` (i.e., all Chalk feature names are also valid OrchestrationItemDatum keys). Grepping the orchestration file will therefore surface Chalk features too.
-
-**`path: "$.value"` applies to ALL facts — both Chalk (FeatureFetcherItemDatum) and OrchestrationItemDatum.** Both are stored with the same `{ value: X, error?: ... }` wrapper at runtime (see `OrchestrationItemDatumResult` in `orchestration-item-layer`), and live strategy rules always use `path: '$.value'` regardless of fact type. Confirmed from `blockExtremeATOV2ModelScore.ts` in `strategy-builder-api` which uses `path: '$.value'` on a `RiskAnalyzerFeaturesItemDatum` fact.
-
-**Confirmed active OrchestrationItemDatum facts in live strategies** (as of 2026-09):
-| Datum key | Enum | Used in strategies |
+**Confirmed live strategy facts** (as of 2026-09, verified via `fivetran_cdc.decision_engine_decision.strategyconfigurations`):
+| Fact string | Source | Enum key |
 |---|---|---|
-| `ato-v3-score` | `AtoV3ItemDatum.AtoV3Score` | ap-fraud, policy, compliance, full |
+| `atoV2ModelScore` | RALF | `OrchestrationItemDatum.RiskAnalyzerFeature_atoV2ModelScore` |
