@@ -184,20 +184,15 @@ If a query fails with `Unknown user-defined function <name>` (e.g., `PROD.ANALYT
 2. **Display-only UDF:** remove the column from the `SELECT`, re-run. Always note in `rule_conversion_report.md`: `"UDF {name} stripped from SELECT — no access under SNOWFLAKE_MCP role. Column was display-only and not needed for IV calculation."`
 3. **Logic UDF (in WHERE or JOIN):** skip this alert for IV. Write a result JSON with `error: "UDF {name} inaccessible — required for alert logic"` and document it clearly in the report.
 
-**7. Simplify queries — drop redundant joins and replace expensive CTEs.**
+**7. Simplify queries — drop display-only joins first; add date guards only on timeout.**
 
-Before modifying dates or adding guards, audit the SQL for parts that can be removed or replaced without changing which payments the alert captures. This is especially important for CTEs that do full-table scans (`RISKENGINEDECISIONS`, `ORGANIZATIONDECISIONS`).
+Before running, remove joins and CTEs whose data is used only in the `SELECT` (display columns) and not in any `WHERE` or `JOIN ON` condition — they do not affect which payments the alert captures and only add query cost. Record every removal in `assumptions_{alert}.txt`: `"Dropped {CTE/join} — display-only, no impact on alert logic."` Note simplifications in `rule_conversion_report.md`.
 
-Ask for each CTE / JOIN:
-- Is the joined data actually used in a `WHERE` condition, or only in the `SELECT` for display? Display-only joins can be removed entirely.
-- Can the `WHERE` condition be satisfied from a different table that is already joined, or from a direct column on `PAYMENTS`? If yes, replace it and drop the expensive CTE.
+Run the query. If it times out, add a date guard to the offending CTE sized to the modified query's time window plus a proportional buffer:
+- `last_2w` (14-day window) → guard of ~30 days: `WHERE createdat > DATEADD('day', -30, CURRENT_DATE())`
+- `mature_90_30` (90-day window) → guard of ~120 days: `WHERE createdat > DATEADD('day', -120, CURRENT_DATE())`
 
-Common cases:
-- A CTE that fetches the "last org decision" to display an ODE label in Redash output is not needed if `RISK_PAYMENTS.org_ode_decision` (already joined) provides the same filter.
-- `RISKENGINEDECISIONS.modelresult:features.payorCreateOriginPartner` can often be replaced with `p.partnername` directly.
-- `RISKENGINEDECISIONS.modelresult:features.payeeEaEmailRiskScore` can often be replaced by joining `prod.ANALYTICS.RISK_EMAILAGE_VENDOR` (pre-computed, indexed by payment ID).
-
-Always prefer dropping a CTE over adding a date guard. Record every removal in `assumptions_{alert}.txt`: `"Dropped {CTE_name} — data available from {alternative source}; no impact on alert logic."` Note simplifications in `rule_conversion_report.md`.
+Note the guard in `assumptions_{alert}.txt`: `"Added createdat guard to {CTE} after timeout — sized to query window + buffer."`
 
 ### Alerts with known issues — mark as error, skip
 
