@@ -74,16 +74,7 @@ Pass `--scope-days 90` for the post-MVP 3-month window.
 
 ## Step 1 — Download the Google Sheet as XLSX
 
-Fetch the sheet as an XLSX file and save it locally at `/tmp/risk_intel/alerts.xlsx`.
-The sheet ID is `1BVjaJlIGpSWhH1IJBOkwAr7xWqMB8IdbtkkWFyRkoQU`.
-
-**How to fetch (use whichever mechanism is available in your environment):**
-
-- **Kite (scheduled / remote):** invoke the `gws-drive` skill, which handles auth automatically.
-- **Claude Code (local / interactive):** use the Google Drive MCP tool `download_file_content` with `exportMimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"`. The result is `{content: <base64>}` — decode with `base64.b64decode(result["content"])`.
-- **Any environment:** a direct Google Sheets export URL can be downloaded with `curl` if a service-account token is available: `https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=xlsx`.
-
-The sheet must be shared with `melio-kite@xero.com` (Viewer) for automation to work.
+Fetch sheet ID `1BVjaJlIGpSWhH1IJBOkwAr7xWqMB8IdbtkkWFyRkoQU` as an XLSX and save it locally — use whichever mechanism your environment provides (Kite: `gws-drive` skill; Claude Code: Google Drive MCP `download_file_content`; any env: `curl` with a service-account token). The sheet must be shared with `melio-kite@xero.com` (Viewer).
 
 `parse_sheet.py` only needs the local file path — it has no Google Drive dependency.
 

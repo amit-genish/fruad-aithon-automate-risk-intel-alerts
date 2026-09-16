@@ -168,7 +168,7 @@ export enum AtoV3ItemDatum {
 
 **When to look here:** any SQL condition that reads from `PRODUCTION_RISK_ORCHESTRATION_ITEM_EXECUTION_RESULTS` or references an executor key (e.g., `atoV3Executor`, `amlExecutor`).
 
-**Important:** `OrchestrationItemDatum` is a union type that **includes** `FeatureFetcherItemDatum` (i.e., all Chalk feature names are also valid OrchestrationItemDatum keys). Grepping the orchestration file will therefore surface Chalk features too. The distinction matters for the rule engine: Chalk features use `path: "$.value"` because the runtime wraps them as `{ value: X }`; pure orchestration item datums (executor scores) may not — confirm with the strategy team if you find a match only in the orch file and not in the Chalk file.
+**Important:** `OrchestrationItemDatum` is a union type that **includes** `FeatureFetcherItemDatum` (i.e., all Chalk feature names are also valid OrchestrationItemDatum keys). Grepping the orchestration file will therefore surface Chalk features too. The distinction matters for the rule engine: Chalk features use `path: "$.value"` because the runtime wraps them as `{ value: X }`. To verify how a datum key behaves in live rules — especially whether it uses `path: "$.value"` or not — query `prod.analytics.risk_strategy_decision_features` for recent decisions that include the datum key and inspect its structure in the result JSON.
 
 **Confirmed active OrchestrationItemDatum facts in live strategies** (as of 2026-09):
 | Datum key | Enum | Used in strategies |
