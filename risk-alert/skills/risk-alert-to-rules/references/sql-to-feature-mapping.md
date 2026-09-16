@@ -124,19 +124,48 @@ If the SQL has an absolute date like `dm.createdat > '2025-12-01'`, this cannot 
 
 ---
 
-## Finding the exact Chalk feature name
+## Two sources for rule facts
 
-Always verify before using a feature in a rule:
+Strategy rules can use facts from **two independent sources**. Always check both before declaring a signal unmapped:
+
+### 1. Chalk feature store (`feature-fetcher-item-datum.ts`)
+
+Clone/pull before grepping — do not rely on a stale local copy:
 
 ```bash
-# Exact name lookup
-grep -i "<column_name>" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
+CHALK="<chalk-feature-store-root>/packages/chalk-typed/src/feature-fetcher-item-datum.ts"
+
+# Exact name lookup — always try at least two keyword variants
+grep -i "<keyword1>" "$CHALK"
+grep -i "<keyword2>" "$CHALK"
 
 # Browse by namespace
-grep "delivery_method.melio_db__raw__" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
-
-# Check feature implementation
-ls /Users/amitgenish/code/chalk-feature-store/feature_store/features/<namespace>/
+grep "payment\." "$CHALK" | grep -i "<concept>"
+grep "payment_action\." "$CHALK" | grep -i "<concept>"  # ← do NOT skip payment_action — it is valid in the rule engine
 ```
 
-The feature value in the TypeScript enum (right side of `=`) is the exact string to use as the `fact` in a rule condition.
+The enum value (right side of `=`) is the exact string to use as the `fact`.
+
+### 2. OrchestrationItemDatum enum (`risk-orchestration`)
+
+Orchestration item results (scores produced by executors like ATO v3, AML, etc.) are also available as rule facts. These are **not** Chalk features — they come from a separate pipeline.
+
+```bash
+ORCH="<risk-orchestration-root>/src/shared/types/orchestration-item-datum/orchestration-item-datum-types.ts"
+
+grep -i "<keyword>" "$ORCH"
+```
+
+The enum value (right side of `=`) is the exact string to use as the `fact`. Example:
+```typescript
+export enum AtoV3ItemDatum {
+  AtoV3Score = 'ato-v3-score',   // ← fact: "ato-v3-score"
+}
+```
+
+**When to look here:** any SQL condition that reads from `PRODUCTION_RISK_ORCHESTRATION_ITEM_EXECUTION_RESULTS` or references an executor key (e.g., `atoV3Executor`, `amlExecutor`).
+
+**Confirmed active OrchestrationItemDatum facts in live strategies** (as of 2026-09):
+| Datum key | Enum | Used in strategies |
+|---|---|---|
+| `ato-v3-score` | `AtoV3ItemDatum.AtoV3Score` | ap-fraud, policy, compliance, full |
