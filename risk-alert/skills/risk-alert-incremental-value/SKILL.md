@@ -167,6 +167,33 @@ SELECT COUNT(*) AS manual_review_load, ... FROM payment_with_fraud
 Use `"full_sql"` as the key in modified_queries.json (instead of `"modified_sql"`) — the
 runner uses `full_sql` directly, bypassing the template wrapper.
 
+**5. Org-aggregated alert SQLs must be de-aggregated.**
+
+Some alert SQLs group results by `(org_id, date)` — e.g., `GROUP BY tp.ORGANIZATIONID, tp.CREATEDAT::date` — and collapse multiple payments into one row per org using `MAX(payment_id)`, `COUNT(DISTINCT ...)`, `SUM(...)`. The template requires **one row per payment**.
+
+Before modifying dates, check: does the SQL have a `GROUP BY` that collapses payments?
+- If **yes**: remove the `GROUP BY`, `MAX(payment_id)`, `COUNT(DISTINCT)`, and `SUM()` aggregation columns. Keep per-payment columns only. The inner CTEs (scores, preceding amounts, etc.) already produce per-payment rows — the aggregation exists for Redash display only.
+- Record this decision in `assumptions_{alert}.txt`: `"Org-aggregated: yes — GROUP BY and MAX(payment_id) removed; template requires per-payment rows."`
+- Note in `rule_conversion_report.md` that the query was de-aggregated for IV calculation.
+
+**6. UDF access failures — strip or skip.**
+
+If a query fails with `Unknown user-defined function <name>` (e.g., `PROD.ANALYTICS.DECRYPT_VALUE_WITH_PARTIAL_ERROR`):
+
+1. Check whether the UDF is in the `SELECT` list only (display column) or in a `WHERE` / `JOIN ON` clause (required for logic).
+2. **Display-only UDF:** remove the column from the `SELECT`, re-run. Always note in `rule_conversion_report.md`: `"UDF {name} stripped from SELECT — no access under SNOWFLAKE_MCP role. Column was display-only and not needed for IV calculation."`
+3. **Logic UDF (in WHERE or JOIN):** skip this alert for IV. Write a result JSON with `error: "UDF {name} inaccessible — required for alert logic"` and document it clearly in the report.
+
+**7. Timeout recovery — add date guards to unfiltered CTEs.**
+
+Run the query as modified (do NOT remove any joins or CTEs — every part of the original query is needed for accurate results). If a query times out, identify CTEs that scan a large table with no `WHERE` clause at all (e.g., `SELECT PAYMENTID, min(id) FROM RISKENGINEDECISIONS GROUP BY 1`). These unbounded scans are the likely cause.
+
+For each such CTE, add a `createdat` filter sized to the modified query's time window plus a proportional buffer:
+- `last_2w` (14-day window) → `WHERE createdat > DATEADD('day', -30, CURRENT_DATE())`
+- `mature_90_30` (90-day window) → `WHERE createdat > DATEADD('day', -120, CURRENT_DATE())`
+
+Note in `assumptions_{alert}.txt`: `"Added createdat guard to {CTE} after timeout — sized to query window + buffer. No other changes made."`
+
 ### Alerts with known issues — mark as error, skip
 
 - **Fraud Ring**: fails with `invalid identifier 'PROXY'` — Redash alias not in raw tables.

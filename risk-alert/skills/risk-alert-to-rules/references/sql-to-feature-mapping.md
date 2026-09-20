@@ -124,19 +124,47 @@ If the SQL has an absolute date like `dm.createdat > '2025-12-01'`, this cannot 
 
 ---
 
-## Finding the exact Chalk feature name
+## Three sources for rule facts
 
-Always verify before using a feature in a rule:
+`OrchestrationItemDatum` (defined in `risk-orchestration`) is a **superset union** of all fact sources. Always check all three before declaring a signal unmapped:
+
+| Source | Repo | File | When to search |
+|---|---|---|---|
+| 1. FeatureFetcher (Chalk) | `chalk-feature-store` | `packages/chalk-typed/src/feature-fetcher-item-datum.ts` | Payment/entity features computed by Chalk |
+| 2. RALF | `payment-approval` | `packages/risk-analyzer-features/src/features-datum.ts` | Risk-Analyzer model scores (e.g., `atoV2ModelScore`) |
+| 3. OrchestrationItemDatum | `risk-orchestration` | `src/shared/types/orchestration-item-datum/orchestration-item-datum-types.ts` | Executor-specific scores (e.g., `ato-v3-score`); also a superset of 1 and 2 |
+
+Clone/pull each repo before grepping — these enums evolve frequently. Always try at least two keyword variants:
 
 ```bash
-# Exact name lookup
-grep -i "<column_name>" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
+FF="<chalk-feature-store-root>/packages/chalk-typed/src/feature-fetcher-item-datum.ts"
+RALF="<payment-approval-root>/packages/risk-analyzer-features/src/features-datum.ts"
+ORCH="<risk-orchestration-root>/src/shared/types/orchestration-item-datum/orchestration-item-datum-types.ts"
 
-# Browse by namespace
-grep "delivery_method.melio_db__raw__" /Users/amitgenish/code/chalk-feature-store/packages/chalk-typed/src/feature-fetcher-item-datum.ts
-
-# Check feature implementation
-ls /Users/amitgenish/code/chalk-feature-store/feature_store/features/<namespace>/
+grep -i "<keyword1>" "$FF" "$RALF" "$ORCH"
+grep -i "<keyword2>" "$FF" "$RALF" "$ORCH"
 ```
 
-The feature value in the TypeScript enum (right side of `=`) is the exact string to use as the `fact` in a rule condition.
+Features can be on any entity type — grep by keyword, not by namespace.
+
+**`path: "$.value"` applies to ALL facts from all three sources.** Every datum result is wrapped as `{ value: X, error?: ... }` at runtime (`OrchestrationItemDatumResult`). Confirmed: `blockExtremeATOV2ModelScore.ts` in `strategy-builder-api` uses `path: '$.value'` on a RALF (`RiskAnalyzerFeaturesItemDatum`) fact.
+
+**MRCA enum rule:** In the `.jsonc` comment, always use the **Most Common Ancestor** enum — `OrchestrationItemDatum` — since it is the superset of all three sources. Never write the sub-enum:
+```jsonc
+// ✅ correct
+"fact": "ato-v3-score" // OrchestrationItemDatum.AtoV3Score
+"fact": "atoV2ModelScore" // OrchestrationItemDatum.RiskAnalyzerFeature_atoV2ModelScore
+"fact": "payment.melio_db__raw__amount" // OrchestrationItemDatum.PaymentMelioDbRawAmount
+
+// ❌ wrong — sub-enum is too specific
+"fact": "ato-v3-score" // AtoV3ItemDatum.AtoV3Score
+```
+
+**`path: "$.value"` is always present** — no exceptions across all three sources.
+
+**Confirmed live strategy facts** (as of 2026-09, verified via `fivetran_cdc.decision_engine_decision.strategyconfigurations` — `isarchived=0`, `mode='live'`):
+| Fact string | Source | Enum key | Strategies |
+|---|---|---|---|
+| `atoV2ModelScore` | RALF | `OrchestrationItemDatum.RiskAnalyzerFeature_atoV2ModelScore` | payment-full, ap-fraud |
+
+Both confirmed to use `path: "$.value"` in the live rule JSON.
