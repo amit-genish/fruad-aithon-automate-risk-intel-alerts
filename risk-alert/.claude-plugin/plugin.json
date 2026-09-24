@@ -1,7 +1,7 @@
 {
   "name": "risk-alert",
   "description": "Risk Intel Alert automation pipeline: precision → incremental value → rule conversion → Slack notifications",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Amit Genish"
   }
