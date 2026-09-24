@@ -64,7 +64,7 @@ incremental_payments AS (
     FROM alert_payments ap
     JOIN first_decisions fd ON fd.payment_id = ap.payment_id
     LEFT JOIN subsequent_nonpolicy_blocks snb ON snb.payment_id = ap.payment_id
-    WHERE (fd.source = 'system' AND fd.decision = 'approve')
+    WHERE (fd.source = 'system' AND fd.decision = 'approved')
        OR (fd.subcategory IN ('policy', 'compliance') AND snb.payment_id IS NULL)
 ),
 
